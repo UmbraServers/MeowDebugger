@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -13,7 +14,8 @@ namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    public readonly Assembly targetAssembly;
+    private static readonly string[] Blacklisted = ["CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
+
     public readonly Type[] types;
 
     private readonly Harmony _harmony;
@@ -33,45 +35,64 @@ internal class Patcher
         _postfixMethod = typeof(Patch.Patch).GetMethod("Postfix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Postfix (static, non-public) not found.");
 
-        // Locate the plugin & target assembly
-        (Plugin? plugin, Assembly? assembly) = PluginLoader.Plugins.FirstOrDefault(x => x.Key.Name == "ATOH");
+        // Prefer assemblies known to the plugin loader so we don't accidentally
+        // trigger static constructors in unrelated system assemblies.
+        var assemblySet = new HashSet<Assembly>();
 
-        if (plugin is null)
-        {
-            Logger.Warn($"ERROR: Plugin not found!");
-            Logger.Warn($"Available plugins: {string.Join(",", PluginLoader.Plugins.Select(p => p.Key.Name))}");
-            types = [];
-            return;
-        }
-
-        targetAssembly = assembly;
-
-        // GetTypes can throw; recover whatever we can
-        Type[] asmTypes;
         try
         {
-            asmTypes = targetAssembly.GetTypes();
+                    foreach (Assembly asm in PluginLoader.Plugins.Values)
+                        if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                            assemblySet.Add(asm);
+                    
+                    foreach (Assembly asm in PluginLoader.Dependencies)
+                        if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                            assemblySet.Add(asm);
         }
-        catch (ReflectionTypeLoadException rtle)
+        catch (Exception e)
         {
-            asmTypes = rtle.Types.Where(t => t != null).ToArray()!;
-            Logger.Warn($"ReflectionTypeLoadException while reading types; using {asmTypes.Length} loadable types.");
+            Logger.Warn($"Failed to query PluginLoader: {e.Message}");
         }
 
-        // Build ignore sets (support both short names and full names)
-        /*var cfg = Plugin.Instance.Config;
-        var ignoreTypeNames = new HashSet<string>(cfg.IgnoreTypes ?? Array.Empty<string>());
-        var ignoreMethodNames = new HashSet<string>(cfg.IgnoreMethods ?? Array.Empty<string>());*/
+        var assemblies = assemblySet.ToArray();
 
-        var filtered = asmTypes
-            .Where(t => t is { IsInterface: false })
-            /*// ignore by short or full name
-            .Where(t => !ignoreTypeNames.Contains(t.Name) && !ignoreTypeNames.Contains(t.FullName ?? t.Name))*/
-            // skip types explicitly marked with HarmonyPatch (usually tooling/framework)
-            .Where(t => !t.IsDefined(typeof(HarmonyPatch), inherit: false))
-            .ToList();
+        var allTypes = new List<Type>();
+        foreach (var asm in assemblies)
+        {
+            Type[] asmTypes;
+            try
+            {
+                asmTypes = asm.GetTypes();
+            }
+            catch (ReflectionTypeLoadException rtle)
+            {
+                asmTypes = rtle.Types.Where(t => t != null).ToArray()!;
+                Logger.Warn($"ReflectionTypeLoadException while reading types from {asm.FullName}; using {asmTypes.Length} loadable types.");
+            }
 
-        types = filtered.ToArray();
+            var filtered = asmTypes
+                .Where(t => t is { IsInterface: false })
+                // allow HarmonyPatch types so everything is instrumented
+                // skip compiler generated types (e.g. coroutine state machines)
+                .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+                // skip types with static constructors to avoid premature dependency initialization
+                .Where(t => t.TypeInitializer == null);
+
+            allTypes.AddRange(filtered);
+        }
+
+        types = allTypes.ToArray();
+    }
+    
+    private static bool IsBlacklisted(Assembly asm)
+    {
+        var name = asm.GetName().Name;
+        bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
+        
+        if(!yesDisplay) 
+            Logger.Info($"Patched {asm.GetName().Name}");
+            
+        return yesDisplay;
     }
 
     public void PatchMethods()
@@ -122,7 +143,6 @@ internal class Patcher
             );
 
             PatchedMethods++;
-            Logger.Debug($"Patched {type.FullName}::{method.Name}()");
         }
         catch (NotSupportedException)
         {
@@ -130,36 +150,21 @@ internal class Patcher
         }
         catch (Exception e)
         {
-            Logger.Error($"Failed to patch {type.FullName}::{method.Name}()");
+            Logger.Error($"Failed to patch {type.FullName}::{method.Name}(): {e}");
         }
     }
 
     // --- Helpers -------------------------------------------------------------
-
-   private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
+    private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
         const BindingFlags flags =
             BindingFlags.Public | BindingFlags.NonPublic |
             BindingFlags.Instance | BindingFlags.Static |
             BindingFlags.DeclaredOnly;
 
-        // 1) Regular declared methods (filter below)
         foreach (var m in t.GetMethods(flags))
             if (CanPatchRegular(m))
                 yield return m;
-
-        // 2) Compiler-generated state machines (async / coroutines)
-        foreach (var nt in t.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic))
-        {
-            if (!LooksLikeStateMachine(nt)) continue;
-
-            // Only patch MoveNext; skip get_Current / Reset and other explicit iface members
-            var moveNext = nt.GetMethod("MoveNext",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-            if (CanPatchMoveNext(moveNext))
-                yield return moveNext;
-        }
     }
 
     private static bool CanPatchRegular(MethodInfo? m)
@@ -176,30 +181,10 @@ internal class Patcher
         if (m.ContainsGenericParameters) return false;
         if (m.GetMethodBody() == null) return false;
 
+        // Coroutines / iterator state machines break when patched
+        if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;
+        if (typeof(IEnumerator).IsAssignableFrom(m.ReturnType)) return false;
+
         return true;
     }
-
-    private static bool CanPatchMoveNext(MethodInfo? m)
-    {
-        if (m == null) return false;
-        if (m.IsAbstract) return false;
-        if (m.ContainsGenericParameters) return false;
-        if (m.GetMethodBody() == null) return false;
-        // MoveNext is not special-name; safe to try
-        return true;
-    }
-
-    private static bool LooksLikeStateMachine(Type nt)
-    {
-        if (typeof(IAsyncStateMachine).IsAssignableFrom(nt)) return true;
-
-        if (Attribute.IsDefined(nt, typeof(CompilerGeneratedAttribute), inherit: false)) return true;
-
-        var n = nt.Name;
-        if (!string.IsNullOrEmpty(n) && (n.Contains("<>") || (n.Contains("<") && n.Contains(">"))))
-            return true;
-
-        return false;
-    }
-    
 }

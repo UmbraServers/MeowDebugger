@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using CommandSystem;
 using MeowDebugger.API.Features;
 
@@ -22,13 +23,36 @@ public class ReporterCommand : ICommand
             return true;
         }
 
-        if (!int.TryParse(arguments.At(0), out int result))
+        string first = arguments.Array[arguments.Offset]!.ToLowerInvariant();
+
+        if (first == "enable")
         {
-            response = MethodMetrics.ReportAndReset();
+            global::MeowDebugger.MeowDebugger.Instance?.EnableTool();
+            response = "Method metrics enabled.";
             return true;
         }
-        
-        response = MethodMetrics.ReportAndReset(result);
+
+        if (first == "disable")
+        {
+            global::MeowDebugger.MeowDebugger.Instance?.DisableTool();
+            response = "Method metrics disabled.";
+            return true;
+        }
+
+        if (int.TryParse(first, out int result))
+        {
+            response = MethodMetrics.ReportAndReset(result);
+            return true;
+        }
+
+        var names = new List<string>();
+        for (int i = 0; i < arguments.Count; i++)
+            names.Add(arguments.Array[arguments.Offset + i]!);
+
+        response = MethodMetrics.ReportAndReset(names);
+        response ??= "No matching methods.";
         return true;
+        
+        
     }
 }

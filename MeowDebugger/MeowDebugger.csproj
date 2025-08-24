@@ -29,7 +29,7 @@
         <Reference Include="Assembly-CSharp-firstpass" HintPath="$(SL_REFERENCES)\Assembly-CSharp-firstpass.dll" />
         <Reference Include="Pooling" HintPath="$(SL_REFERENCES)\Pooling.dll" />
         <Reference Include="Mirror" HintPath="$(SL_REFERENCES)\Mirror.dll" />
-        <Reference Include="mscorlib" HintPath="$(SL_REFERENCES)\mscorlib.dll" />
+        <!--<Reference Include="mscorlib" HintPath="$(SL_REFERENCES)\mscorlib.dll" /> -->
         <Reference Include="UnityEngine" HintPath="$(SL_REFERENCES)\UnityEngine.dll" />
         <Reference Include="UnityEngine.CoreModule" HintPath="$(SL_REFERENCES)\UnityEngine.CoreModule.dll" />
         <Reference Include="UnityEngine.PhysicsModule" HintPath="$(SL_REFERENCES)\UnityEngine.PhysicsModule.dll" />

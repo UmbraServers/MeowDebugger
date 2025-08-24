@@ -38,19 +38,43 @@ public class MeowDebugger : Plugin
     /// </summary>
     internal static Assembly Assembly { get; } = typeof(MeowDebugger).Assembly;
     
-    private Patcher _patcher;
+    internal static MeowDebugger? Instance { get; private set; }
+
+    private Patcher? _patcher;
+
+    private bool _enabled;
+
     
     /// <inheritdoc/>
     public override void Enable()
     {
-        Harmony = new Harmony("MeowDebugger_" + DateTime.Now);
-        _patcher = new(Harmony);
-        _patcher.PatchMethods();
+        Instance = this;
+        EnableTool();
     }
 
     /// <inheritdoc/>
     public override void Disable()
     {
+        DisableTool();
+    }
+    
+    internal void EnableTool()
+    {
+        if (_enabled)
+            return;
+
+        Harmony ??= new Harmony("MeowDebugger_" + DateTime.Now);
+        _patcher ??= new Patcher(Harmony);
+        _patcher.PatchMethods();
+        _enabled = true;
+    }
+
+    internal void DisableTool()
+    {
+        if (!_enabled)
+            return;
+
         Harmony?.UnpatchAll(Harmony.Id);
+        _enabled = false;
     }
 }
