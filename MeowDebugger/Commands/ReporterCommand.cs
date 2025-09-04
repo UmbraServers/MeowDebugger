@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using CommandSystem;
+using LabApi.Features.Wrappers;
 using MeowDebugger.API.Features;
 
 namespace MeowDebugger.Commands;
@@ -19,7 +20,7 @@ public class ReporterCommand : ICommand
     {
         if (arguments.Count <= 0)
         {
-            response = MethodMetrics.ReportAndReset();
+            response = WithTps(MethodMetrics.ReportAndReset());
             return true;
         }
 
@@ -41,7 +42,7 @@ public class ReporterCommand : ICommand
 
         if (int.TryParse(first, out int result))
         {
-            response = MethodMetrics.ReportAndReset(result);
+            response = WithTps(MethodMetrics.ReportAndReset(result));
             return true;
         }
 
@@ -49,10 +50,17 @@ public class ReporterCommand : ICommand
         for (int i = 0; i < arguments.Count; i++)
             names.Add(arguments.Array[arguments.Offset + i]!);
 
-        response = MethodMetrics.ReportAndReset(names);
-        response ??= "No matching methods.";
+        response = WithTps(MethodMetrics.ReportAndReset(names) ?? "No matching methods.");
         return true;
-        
-        
+    }
+
+    private static string WithTps(string? metrics)
+    {
+        double tps = Server.Tps;
+        if (tps > Server.MaxTps)
+            tps = Server.MaxTps;
+        else if (tps < 0)
+            tps = 0;
+        return $"TPS: {tps:0.##}\n{metrics}";
     }
 }

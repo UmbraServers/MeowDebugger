@@ -7,41 +7,53 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using LabApi.Features.Wrappers;
 
 namespace MeowDebugger.API.Features;
 
 internal static class MethodMetrics
 {
-     private static readonly ConcurrentDictionary<MethodBase, Stats> _map = new();
-     private static readonly ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
-     private static readonly AsyncLocal<Stack<MethodBase>> _stack = new();
+    private static readonly ConcurrentDictionary<MethodBase, Stats> _map = new();
+    private static readonly ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
+    private static readonly AsyncLocal<Stack<(MethodBase Method, double BeforeTps)>> _stack = new();
 
-     public static void Enter(MethodBase? method)
-     {
-         if (method == null) return;
-         var stack = _stack.Value ??= new Stack<MethodBase>();
-         stack.Push(method);
-     }
+    public static void Enter(MethodBase? method)
+    {
+        if (method == null) return;
+        var stack = _stack.Value ??= new Stack<(MethodBase, double)>();
+        stack.Push((method, GetClampedTps()));
+    }
 
-     public static void Exit(MethodBase? method, long elapsedTicks)
-     {
-         if (method == null) return;
-         var stack = _stack.Value;
-         if (stack == null || stack.Count == 0) return;
-         var popped = stack.Pop();
-         if (!ReferenceEquals(popped, method)) return;
+    public static void Exit(MethodBase? method, long elapsedTicks)
+    {
+        if (method == null) return;
+        var stack = _stack.Value;
+        if (stack == null || stack.Count == 0) return;
+        var popped = stack.Pop();
+        if (!ReferenceEquals(popped.Method, method)) return;
 
-         var s = _map.GetOrAdd(method, _ => new Stats());
-         s.Add(elapsedTicks);
+        double beforeTps = popped.BeforeTps;
+        double afterTps = GetClampedTps();
 
-         if (stack.Count > 0)
-         {
-             var parent = stack.Peek();
-             var map = _children.GetOrAdd(parent, _ => new ConcurrentDictionary<MethodBase, Stats>());
-             var childStats = map.GetOrAdd(method, _ => new Stats());
-             childStats.Add(elapsedTicks);
-         }
-     }
+        var s = _map.GetOrAdd(method, _ => new Stats());
+        s.Add(elapsedTicks, beforeTps, afterTps);
+
+        if (stack.Count > 0)
+        {
+            var parent = stack.Peek().Method;
+            var map = _children.GetOrAdd(parent, _ => new ConcurrentDictionary<MethodBase, Stats>());
+            var childStats = map.GetOrAdd(method, _ => new Stats());
+            childStats.Add(elapsedTicks, beforeTps, afterTps);
+        }
+    }
+
+    private static double GetClampedTps()
+    {
+        double tps = Server.Tps;
+        if (tps > Server.MaxTps) tps = Server.MaxTps;
+        else if (tps < 0) tps = 0;
+        return tps;
+    }
 
     public static string ReportAndReset(int topN = 10)
     {
@@ -82,7 +94,7 @@ internal static class MethodMetrics
 
         var sb = new StringBuilder();
         sb.AppendLine("==== Method Timing (last window) ====");
-        sb.AppendLine("Avg(ms)\tMin(ms)\tMax(ms)\tCount\tTotal(ms)\tDanger\tMethod");
+        sb.AppendLine("Avg(ms)\tMin(ms)\tMax(ms)\tCount\tTotal(ms)\tTPS Before\tTPS After\tDanger\tMethod");
         long maxTotal = items.Max(it => it.Snap.TotalTicks);
         foreach (var it in items)
         {
@@ -93,12 +105,14 @@ internal static class MethodMetrics
                 danger = Math.Max(1, Math.Min(10, danger));
             }
             string dangerHex = DangerToColorHex(danger);
-            sb.AppendFormat("{0:0.###}\t{1:0.###}\t{2:0.###}\t{3}\t{4:0.###}\t{5}\t{6}\n",
+            sb.AppendFormat("{0:0.###}\t{1:0.###}\t{2:0.###}\t{3}\t{4:0.###}\t{5:0.###}\t{6:0.###}\t{7}\t{8}\n",
                 ToMs(it.Snap.AvgTicks),
                 ToMs(it.Snap.MinTicks),
                 ToMs(it.Snap.MaxTicks),
                 it.Snap.Count,
                 ToMs(it.Snap.TotalTicks),
+                it.Snap.BeforeTpsAvg,
+                it.Snap.AfterTpsAvg,
                 $"<color=#{dangerHex}>{danger}</color>",
                 it.Method.DeclaringType != null
                     ? $"{it.Method.DeclaringType.FullName}.{it.Method.Name}"
@@ -126,12 +140,14 @@ internal static class MethodMetrics
                             cd = Math.Max(1, Math.Min(10, cd));
                         }
                         string cHex = DangerToColorHex(cd);
-                        sb.AppendFormat("    {0:0.###}\t{1:0.###}\t{2:0.###}\t{3}\t{4:0.###}\t{5}\t{6}\n",
+                        sb.AppendFormat("    {0:0.###}\t{1:0.###}\t{2:0.###}\t{3}\t{4:0.###}\t{5:0.###}\t{6:0.###}\t{7}\t{8}\n",
                             ToMs(child.Snap.AvgTicks),
                             ToMs(child.Snap.MinTicks),
                             ToMs(child.Snap.MaxTicks),
                             child.Snap.Count,
                             ToMs(child.Snap.TotalTicks),
+                            child.Snap.BeforeTpsAvg,
+                            child.Snap.AfterTpsAvg,
                             $"<color=#{cHex}>{cd}</color>",
                             child.Method.DeclaringType != null
                                 ? $"{child.Method.DeclaringType.FullName}.{child.Method.Name}"
@@ -157,9 +173,11 @@ internal static class MethodMetrics
         private int _count;
         private long _min = long.MaxValue;
         private long _max = 0;
+        private double _beforeTpsTotal;
+        private double _afterTpsTotal;
         private readonly object _gate = new();
 
-        public void Add(long ticks)
+        public void Add(long ticks, double beforeTps, double afterTps)
         {
             Interlocked.Add(ref _total, ticks);
             Interlocked.Increment(ref _count);
@@ -167,6 +185,8 @@ internal static class MethodMetrics
             {
                 if (ticks < _min) _min = ticks;
                 if (ticks > _max) _max = ticks;
+                _beforeTpsTotal += beforeTps;
+                _afterTpsTotal += afterTps;
             }
         }
 
@@ -175,26 +195,33 @@ internal static class MethodMetrics
             long total = Interlocked.Exchange(ref _total, 0);
             int count = Interlocked.Exchange(ref _count, 0);
             long min, max;
+            double beforeTotal, afterTotal;
             lock (_gate)
             {
                 min = _min; max = _max;
                 _min = long.MaxValue; _max = 0;
+                beforeTotal = _beforeTpsTotal; _beforeTpsTotal = 0;
+                afterTotal = _afterTpsTotal; _afterTpsTotal = 0;
             }
             long avg = count > 0 ? total / Math.Max(1, count) : 0;
+            double beforeAvg = count > 0 ? beforeTotal / Math.Max(1, count) : 0;
+            double afterAvg = count > 0 ? afterTotal / Math.Max(1, count) : 0;
             if (count == 0) { min = 0; max = 0; }
-            return new Snapshot(total, count, min, max, avg);
+            return new Snapshot(total, count, min, max, avg, beforeAvg, afterAvg);
         }
 
         public readonly struct Snapshot
         {
-            public Snapshot(long totalTicks, int count, long minTicks, long maxTicks, long avgTicks)
-            { TotalTicks = totalTicks; Count = count; MinTicks = minTicks; MaxTicks = maxTicks; AvgTicks = avgTicks; }
+            public Snapshot(long totalTicks, int count, long minTicks, long maxTicks, long avgTicks, double beforeTpsAvg, double afterTpsAvg)
+            { TotalTicks = totalTicks; Count = count; MinTicks = minTicks; MaxTicks = maxTicks; AvgTicks = avgTicks; BeforeTpsAvg = beforeTpsAvg; AfterTpsAvg = afterTpsAvg; }
 
             public long TotalTicks { get; }
             public int Count { get; }
             public long MinTicks { get; }
             public long MaxTicks { get; }
             public long AvgTicks { get; }
+            public double BeforeTpsAvg { get; }
+            public double AfterTpsAvg { get; }
         }
     }
 }
