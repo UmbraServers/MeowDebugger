@@ -14,7 +14,7 @@ namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    private static readonly string[] Blacklisted = ["CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
+    private static readonly string[] Blacklisted = ["Discord", "Exiled.API", "System", "mscorlib", "netstandard", "Interop", "Microsoft", "CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
 
     public readonly Type[] types;
 
@@ -28,8 +28,6 @@ internal class Patcher
     public Patcher(Harmony harmony)
     {
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
-
-        // Validate that Patch.Prefix/Postfix exist and have the right visibility
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
         _postfixMethod = typeof(Patch.Patch).GetMethod("Postfix", BindingFlags.Static | BindingFlags.NonPublic)
@@ -38,23 +36,23 @@ internal class Patcher
         // Prefer assemblies known to the plugin loader so we don't accidentally
         // trigger static constructors in unrelated system assemblies.
         var assemblySet = new HashSet<Assembly>();
+        var assemblies = assemblySet.ToArray();
 
         try
         {
-                    foreach (Assembly asm in PluginLoader.Plugins.Values)
-                        if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
-                            assemblySet.Add(asm);
-                    
-                    foreach (Assembly asm in PluginLoader.Dependencies)
-                        if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
-                            assemblySet.Add(asm);
+            var gameAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
+
+            if (gameAssembly == null)
+            {
+                return;
+            }
+
+            assemblies = new[] { gameAssembly };
         }
         catch (Exception e)
         {
             Logger.Warn($"Failed to query PluginLoader: {e.Message}");
         }
-
-        var assemblies = assemblySet.ToArray();
 
         var allTypes = new List<Type>();
         foreach (var asm in assemblies)
@@ -74,25 +72,15 @@ internal class Patcher
                 .Where(t => t is { IsInterface: false })
                 // allow HarmonyPatch types so everything is instrumented
                 // skip compiler generated types (e.g. coroutine state machines)
-                .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
-                // skip types with static constructors to avoid premature dependency initialization
-                .Where(t => t.TypeInitializer == null);
+                //.Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+                .Where(t => t.FullName == null || !t.FullName.Contains("Discord"));
+            // skip types with static constructors to avoid premature dependency initialization
+            //.Where(t => t.TypeInitializer == null);
 
             allTypes.AddRange(filtered);
         }
 
         types = allTypes.ToArray();
-    }
-    
-    private static bool IsBlacklisted(Assembly asm)
-    {
-        var name = asm.GetName().Name;
-        bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
-        
-        if(!yesDisplay) 
-            Logger.Info($"Patched {asm.GetName().Name}");
-            
-        return yesDisplay;
     }
 
     public void PatchMethods()
@@ -128,7 +116,6 @@ internal class Patcher
     {
         try
         {
-            // Avoid double-patching if this ran before (domain reload, etc.)
             var info = Harmony.GetPatchInfo(method);
             if (info?.Owners?.Contains(_harmony.Id) == true)
             {
@@ -157,10 +144,18 @@ internal class Patcher
     // --- Helpers -------------------------------------------------------------
     private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
+        if (t == null)
+            yield break;
+
+        if (t.Namespace == null || !t.Namespace.Contains("PlayerRoles"))
+            yield break;
+
         const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.NonPublic |
-            BindingFlags.Instance | BindingFlags.Static |
-            BindingFlags.DeclaredOnly;
+        BindingFlags.Public |
+        BindingFlags.NonPublic |
+        BindingFlags.Instance |
+        BindingFlags.Static |
+        BindingFlags.DeclaredOnly;
 
         foreach (var m in t.GetMethods(flags))
             if (CanPatchRegular(m))
@@ -172,16 +167,35 @@ internal class Patcher
         if (m == null) return false;
 
         // Skip *all* special-name methods (covers get/set/add/remove/op_ and explicit iface impls like IFoo.Bar)
-        if (m.IsSpecialName) return false;
+        // if (m.IsSpecialName) return false;
 
         // Explicit interface implementations often appear as Name.Contains(".")
-        if (m.Name.IndexOf('.') >= 0) return false;
+        //if (m.Name.IndexOf('.') >= 0) return false;
+
+        //if (m.DeclaringType != m.ReflectedType)
+        //    return false;
+
+        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
+            return false;
 
         if (m.IsAbstract) return false;
         if (m.ContainsGenericParameters) return false;
         if (m.GetMethodBody() == null) return false;
 
         // Coroutines / iterator state machines break when patched
+        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
+            return false;
+
+        if (m.DeclaringType.Name.Contains("<"))
+            return false;
+
+        // Skip iterator methods
+        if (m.Name == "MoveNext")
+            return false;
+
+        if (m.Name == "System.Collections.IEnumerator.Reset")
+            return false;
+
         if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;
         if (typeof(IEnumerator).IsAssignableFrom(m.ReturnType)) return false;
 
