@@ -1,20 +1,17 @@
-﻿using System;
+﻿using HarmonyLib;
+using LabApi.Features.Console;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using HarmonyLib;
-using LabApi.Features.Console;
-using LabApi.Loader;
-using LabApi.Loader.Features.Plugins;
-using Mono.CompilerServices.SymbolWriter;
 
 namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    private static readonly string[] Blacklisted = ["Discord", "Exiled.API", "System", "mscorlib", "netstandard", "Interop", "Microsoft", "CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
+    public static readonly string[] Whitelisted = ["CommandSystem"];
 
     public readonly Type[] types;
 
@@ -147,7 +144,7 @@ internal class Patcher
         if (t == null)
             yield break;
 
-        if (t.Namespace == null || !t.Namespace.Contains("PlayerRoles"))
+        if (t.Namespace == null || !Whitelisted.Any(name => t.Namespace.Contains(name)))
             yield break;
 
         const BindingFlags flags =
