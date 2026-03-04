@@ -46,6 +46,13 @@ public class ReporterCommand : ICommand
             return true;
         }
 
+        if (first.Contains("flame"))
+        {
+            MethodMetrics.ExportFlameGraph(first +".txt");
+            response = "Flame graph exported to flame.txt.";
+            return true;
+        }
+
         var names = new List<string>();
         for (int i = 0; i < arguments.Count; i++)
             names.Add(arguments.Array[arguments.Offset + i]!);
