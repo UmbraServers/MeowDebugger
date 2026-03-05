@@ -6,13 +6,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using LabApi.Loader;
 
 namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    public static readonly string[] Whitelisted = ["CommandSystem"];
-
+    private static readonly string[] Blacklisted = ["CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
     public readonly Type[] types;
 
     private readonly Harmony _harmony;
@@ -34,14 +34,13 @@ internal class Patcher
 
         try
         {
-            var gameAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
-
-            if (gameAssembly == null)
-            {
-                return;
-            }
-
-            assemblies = new[] { gameAssembly };
+            foreach (Assembly asm in PluginLoader.Plugins.Values)
+                if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                    assemblySet.Add(asm);
+                    
+            foreach (Assembly asm in PluginLoader.Dependencies)
+                if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                    assemblySet.Add(asm);
         }
         catch (Exception e)
         {
@@ -100,6 +99,17 @@ internal class Patcher
         Logger.Info($"Tried patching {tried} methods across {types.Length} types; successfully patched {PatchedMethods}.");
     }
 
+    private static bool IsBlacklisted(Assembly asm)
+    {
+        var name = asm.GetName().Name;
+        bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
+        
+        if(!yesDisplay) 
+            Logger.Info($"Patched {asm.GetName().Name}");
+            
+        return yesDisplay;
+    }
+    
     private void PatchMethod(MethodInfo method, Type type)
     {
         try
@@ -132,9 +142,6 @@ internal class Patcher
     private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
         if (t == null)
-            yield break;
-
-        if (t.Namespace == null || Whitelisted.Any(name => t.Namespace.Contains(name)))
             yield break;
 
         const BindingFlags flags =
