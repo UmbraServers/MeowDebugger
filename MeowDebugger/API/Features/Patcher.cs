@@ -27,13 +27,19 @@ internal class Patcher
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
-        _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)!;
+        _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)
+                           ?? throw new InvalidOperationException("Patch.Finalizer (static, non-public) not found.");
         
-        var assemblySet = new HashSet<Assembly>();
-        var assemblies = assemblySet.ToArray();
+        HashSet<Assembly> assemblySet = new HashSet<Assembly>();
+        Assembly[] assemblies = assemblySet.ToArray();
 
+        Assembly gameAsm = typeof(ReferenceHub).Assembly;
+        
         try
         {
+            if (!gameAsm.IsDynamic && !IsBlacklisted(gameAsm))
+                assemblySet.Add(gameAsm);
+            
             foreach (Assembly asm in PluginLoader.Plugins.Values)
                 if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
                     assemblySet.Add(asm);
