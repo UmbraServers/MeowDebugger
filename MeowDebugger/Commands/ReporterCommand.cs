@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using CommandSystem;
 using LabApi.Features.Wrappers;
+using LabApi.Loader;
+using LabApi.Loader.Features.Paths;
 using MeowDebugger.API.Features;
 
 namespace MeowDebugger.Commands;
@@ -48,7 +51,7 @@ public class ReporterCommand : ICommand
 
         if (first.Contains("flame"))
         {
-            MethodMetrics.ExportFlameGraph(first +".txt");
+            MethodMetrics.ExportFlameGraph(Path.Combine(PathManager.Configs.FullName, $"{first}.txt"));
             response = "Flame graph exported to flame.txt.";
             return true;
         }

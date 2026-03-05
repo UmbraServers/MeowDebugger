@@ -11,16 +11,16 @@ namespace MeowDebugger;
 public class MeowDebugger : Plugin
 {
     /// <inheritdoc/>
-    public override string Name => "SSBMain";
+    public override string Name => "MeowDebugger";
 
     /// <inheritdoc/>
-    public override string Description => "Super Smash Bros SL: Edition";
+    public override string Description => "Debugger for SCP:SL";
 
     /// <inheritdoc/>
     public override string Author => "@notzer0two";
 
     /// <inheritdoc/>
-    public override LoadPriority Priority => LoadPriority.Highest;
+    public override LoadPriority Priority => LoadPriority.Lowest;
 
     /// <inheritdoc/>
     public override Version Version { get; } = Assembly.GetName().Version;
