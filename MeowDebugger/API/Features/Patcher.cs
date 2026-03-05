@@ -18,7 +18,7 @@ internal class Patcher
     private readonly Harmony _harmony;
 
     private readonly MethodInfo _prefixMethod;
-    private readonly MethodInfo _postfixMethod;
+    private readonly MethodInfo _finalizerMethod;
 
     public int PatchedMethods = 0;
 
@@ -27,11 +27,8 @@ internal class Patcher
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
-        _postfixMethod = typeof(Patch.Patch).GetMethod("Postfix", BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Patch.Postfix (static, non-public) not found.");
-
-        // Prefer assemblies known to the plugin loader so we don't accidentally
-        // trigger static constructors in unrelated system assemblies.
+        _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)!;
+        
         var assemblySet = new HashSet<Assembly>();
         var assemblies = assemblySet.ToArray();
 
@@ -67,12 +64,7 @@ internal class Patcher
 
             var filtered = asmTypes
                 .Where(t => t is { IsInterface: false })
-                // allow HarmonyPatch types so everything is instrumented
-                // skip compiler generated types (e.g. coroutine state machines)
-                //.Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
                 .Where(t => t.FullName == null || !t.FullName.Contains("Discord"));
-            // skip types with static constructors to avoid premature dependency initialization
-            //.Where(t => t.TypeInitializer == null);
 
             allTypes.AddRange(filtered);
         }
@@ -94,7 +86,6 @@ internal class Patcher
         {
             foreach (MethodInfo method in EnumeratePatchableMethods(type))
             {
-                // Optional per-method ignore: supports short and "FullName::Method"
                 var fullKey = $"{type.FullName}::{method.Name}";
                 /*var cfg = Plugin.Instance.Config;
                 if ((cfg.IgnoreMethods?.Contains(method.Name) ?? false) ||
@@ -123,7 +114,7 @@ internal class Patcher
             _harmony.Patch(
                 original: method,
                 prefix: new HarmonyMethod(_prefixMethod),
-                postfix: new HarmonyMethod(_postfixMethod)
+                finalizer: new HarmonyMethod(_finalizerMethod)
             );
 
             PatchedMethods++;
@@ -138,13 +129,12 @@ internal class Patcher
         }
     }
 
-    // --- Helpers -------------------------------------------------------------
     private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
         if (t == null)
             yield break;
 
-        if (t.Namespace == null || !Whitelisted.Any(name => t.Namespace.Contains(name)))
+        if (t.Namespace == null || Whitelisted.Any(name => t.Namespace.Contains(name)))
             yield break;
 
         const BindingFlags flags =
@@ -163,15 +153,6 @@ internal class Patcher
     {
         if (m == null) return false;
 
-        // Skip *all* special-name methods (covers get/set/add/remove/op_ and explicit iface impls like IFoo.Bar)
-        // if (m.IsSpecialName) return false;
-
-        // Explicit interface implementations often appear as Name.Contains(".")
-        //if (m.Name.IndexOf('.') >= 0) return false;
-
-        //if (m.DeclaringType != m.ReflectedType)
-        //    return false;
-
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
 
@@ -179,18 +160,19 @@ internal class Patcher
         if (m.ContainsGenericParameters) return false;
         if (m.GetMethodBody() == null) return false;
 
-        // Coroutines / iterator state machines break when patched
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
 
         if (m.DeclaringType.Name.Contains("<"))
             return false;
-
-        // Skip iterator methods
+        
         if (m.Name == "MoveNext")
             return false;
 
         if (m.Name == "System.Collections.IEnumerator.Reset")
+            return false;
+        
+        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
 
         if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;

@@ -44,7 +44,7 @@ public class RunForXSecondsProfiler : ICommand
             DummyUtils.SpawnDummy();
         }
 
-        string path = $"C:\\Users\\joaov\\Desktop\\Projetos\\MeowDebugger\\graphs\\{string.Join("", Patcher.Whitelisted)}-{r+1}Players.txt";
+        string path = ""; //$"C:\\Users\\joaov\\Desktop\\Projetos\\MeowDebugger\\graphs\\{string.Join("", Patcher.Whitelisted)}-{r+1}Players.txt";
 
         MEC.Timing.CallDelayed(result, () =>
         {

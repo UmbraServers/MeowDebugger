@@ -15,6 +15,8 @@ internal static class MethodMetrics
 {
     private static readonly ConcurrentDictionary<MethodBase, Stats> _map = new();
     private static readonly ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
+    
+    [ThreadStatic]
     private static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)>? _stackValue;
 
     private static readonly ConcurrentDictionary<string, long> _flame = new();
