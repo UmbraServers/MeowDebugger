@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 namespace MeowDebugger;
 
-public class MeowDebugger : Plugin
+public class MeowDebugger : Plugin<ConfigDebugger>
 {
     /// <inheritdoc/>
     public override string Name => "MeowDebugger";
@@ -42,8 +42,6 @@ public class MeowDebugger : Plugin
 
     private Patcher? _patcher;
 
-    private bool _enabled;
-
     
     /// <inheritdoc/>
     public override void Enable()
@@ -60,21 +58,13 @@ public class MeowDebugger : Plugin
     
     internal void EnableTool()
     {
-        if (_enabled)
-            return;
-
         Harmony ??= new Harmony("MeowDebugger_" + DateTime.Now);
         _patcher ??= new Patcher(Harmony);
         _patcher.PatchMethods();
-        _enabled = true;
     }
 
     internal void DisableTool()
     {
-        if (!_enabled)
-            return;
-
         Harmony?.UnpatchAll(Harmony.Id);
-        _enabled = false;
     }
 }

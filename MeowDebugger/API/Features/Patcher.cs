@@ -12,7 +12,7 @@ namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    private static readonly string[] Blacklisted = ["CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
+    private static List<string> Blacklisted;
     public readonly Type[] types;
 
     private readonly Harmony _harmony;
@@ -24,6 +24,7 @@ internal class Patcher
 
     public Patcher(Harmony harmony)
     {
+        Blacklisted = MeowDebugger.Instance!.Config!.Blacklist;
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");

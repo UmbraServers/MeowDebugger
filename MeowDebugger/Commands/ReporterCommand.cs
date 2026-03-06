@@ -9,16 +9,23 @@ using MeowDebugger.API.Features;
 
 namespace MeowDebugger.Commands;
 
+/// <summary>
+/// Command for reporting.
+/// </summary>
 [CommandHandler(typeof(RemoteAdminCommandHandler))]
 [CommandHandler(typeof(GameConsoleCommandHandler))]
 public class ReporterCommand : ICommand
 {
+    /// <inheritdoc />
     public string Command => "reporter";
 
+    /// <inheritdoc />
     public string[] Aliases => [];
 
+    /// <inheritdoc />
     public string Description => "Reports the slowest methods";
 
+    /// <inheritdoc />
     public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
     {
         if (arguments.Count <= 0)
@@ -51,8 +58,9 @@ public class ReporterCommand : ICommand
 
         if (first.Contains("flame"))
         {
-            MethodMetrics.ExportFlameGraph(Path.Combine(PathManager.Configs.FullName, $"{first}.txt"));
-            response = "Flame graph exported to flame.txt.";
+            string path = Path.Combine(PathManager.Configs.FullName, $"{first}.txt");
+            MethodMetrics.ExportFlameGraph(path);
+            response = $"Flame graph exported to {path}";
             return true;
         }
 
