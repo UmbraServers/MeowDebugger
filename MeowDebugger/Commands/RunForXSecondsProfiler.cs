@@ -6,7 +6,9 @@ using MeowDebugger.API.Features;
 using NetworkManagerUtils.Dummies;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using LabApi.Loader.Features.Paths;
 
 namespace MeowDebugger.Commands;
 
@@ -43,9 +45,9 @@ public class RunForXSecondsProfiler : ICommand
         {
             DummyUtils.SpawnDummy();
         }
-
-        string path = ""; //$"C:\\Users\\joaov\\Desktop\\Projetos\\MeowDebugger\\graphs\\{string.Join("", Patcher.Whitelisted)}-{r+1}Players.txt";
-
+        
+        string path = Path.Combine(PathManager.Configs.FullName, "flame-generated.txt");
+        
         MEC.Timing.CallDelayed(result, () =>
         {
             MethodMetrics.ExportFlameGraph(path);
