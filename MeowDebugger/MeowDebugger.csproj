@@ -6,6 +6,8 @@
         <Nullable>enable</Nullable>
         <Version>1.0.0</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Configurations>Debug;Release;Exiled Release</Configurations>
+        <Platforms>AnyCPU</Platforms>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -15,11 +17,17 @@
         <Title>MeowDebugger</Title>
         <Description>Debugger For AftermathServers</Description>
     </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)' == 'Exiled Release'">
+        <AssemblyName>MeowDebugger-Exiled</AssemblyName>
+        <Optimize>true</Optimize>
+    </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
         <PackageReference Include="Northwood.LabAPI" Version="1.0.2" IncludeAssets="All" PrivateAssets="All" />
         <PackageReference Include="Lib.Harmony" Version="2.2.2" />
+        <PackageReference Include="ExMod.Exiled" Version="9.13.1" Condition="'$(Configuration)' == 'Exiled Release'" />
     </ItemGroup>
 
     <ItemGroup>
@@ -29,7 +37,6 @@
         <Reference Include="Assembly-CSharp-firstpass" HintPath="$(SL_REFERENCES)\Assembly-CSharp-firstpass.dll" />
         <Reference Include="Pooling" HintPath="$(SL_REFERENCES)\Pooling.dll" />
         <Reference Include="Mirror" HintPath="$(SL_REFERENCES)\Mirror.dll" />
-        <!--<Reference Include="mscorlib" HintPath="$(SL_REFERENCES)\mscorlib.dll" /> -->
         <Reference Include="UnityEngine" HintPath="$(SL_REFERENCES)\UnityEngine.dll" />
         <Reference Include="UnityEngine.CoreModule" HintPath="$(SL_REFERENCES)\UnityEngine.CoreModule.dll" />
         <Reference Include="UnityEngine.PhysicsModule" HintPath="$(SL_REFERENCES)\UnityEngine.PhysicsModule.dll" />

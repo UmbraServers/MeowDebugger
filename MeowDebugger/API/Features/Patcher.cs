@@ -12,8 +12,8 @@ namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    private static List<string> Blacklisted => MeowDebugger.Instance!.Config!.BlacklistAssemblies;
-    private static List<string> Whitelist => MeowDebugger.Instance!.Config!.WhitelistNamespaces;
+    private static List<string> Blacklisted => ConfigDebugger.Instance!.BlacklistAssemblies;
+    private static List<string> Whitelist => ConfigDebugger.Instance!.WhitelistNamespaces;
     public readonly Type[] types;
 
     private readonly Harmony _harmony;
@@ -42,11 +42,11 @@ internal class Patcher
                 assemblySet.Add(gameAsm);
             
             foreach (Assembly asm in PluginLoader.Plugins.Values)
-                if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm))
                     assemblySet.Add(asm);
                     
             foreach (Assembly asm in PluginLoader.Dependencies)
-                if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm))
                     assemblySet.Add(asm);
         }
         catch (Exception e)

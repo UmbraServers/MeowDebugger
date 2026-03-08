@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using CommandSystem;
 using LabApi.Features.Wrappers;
-using LabApi.Loader;
 using LabApi.Loader.Features.Paths;
+using MeowDebugger.API;
 using MeowDebugger.API.Features;
 
 namespace MeowDebugger.Commands;
@@ -38,14 +38,14 @@ public class ReporterCommand : ICommand
 
         if (first == "enable")
         {
-            global::MeowDebugger.MeowDebugger.Instance?.EnableTool();
+            GeneralUtils.EnableTool();
             response = "Method metrics enabled.";
             return true;
         }
 
         if (first == "disable")
         {
-            global::MeowDebugger.MeowDebugger.Instance?.DisableTool();
+            GeneralUtils.DisableTool();
             response = "Method metrics disabled.";
             return true;
         }
