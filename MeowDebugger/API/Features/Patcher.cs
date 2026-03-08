@@ -30,24 +30,40 @@ internal class Patcher
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
         _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)
                            ?? throw new InvalidOperationException("Patch.Finalizer (static, non-public) not found.");
-        
+
         HashSet<Assembly> assemblySet = new HashSet<Assembly>();
         Assembly[] assemblies = assemblySet.ToArray();
 
         Assembly gameAsm = typeof(ReferenceHub).Assembly;
-        
+
         try
         {
+            bool shouldPatchLabAPI = true;
+
             if (!gameAsm.IsDynamic && !IsBlacklisted(gameAsm))
                 assemblySet.Add(gameAsm);
-            
+
+#if EXILED_RELEASE
+
+            foreach (var plugin in Exiled.Loader.Loader.Plugins)
+                if (!plugin.Assembly.IsDynamic && plugin.Assembly != GeneralUtils.Assembly && !IsBlacklisted(plugin.Assembly))
+                    assemblySet.Add(plugin.Assembly);
+
+            foreach (Assembly asm in Exiled.Loader.Loader.Dependencies)
+                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm))
+                    assemblySet.Add(asm);
+
+            shouldPatchLabAPI = ConfigDebugger.Instance!.ShouldPatchLabApiPlugins;
+#endif
+
             foreach (Assembly asm in PluginLoader.Plugins.Values)
-                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm))
+                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm) && shouldPatchLabAPI)
                     assemblySet.Add(asm);
-                    
+
             foreach (Assembly asm in PluginLoader.Dependencies)
-                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm))
+                if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm) && shouldPatchLabAPI)
                     assemblySet.Add(asm);
+
         }
         catch (Exception e)
         {
@@ -67,7 +83,7 @@ internal class Patcher
                 asmTypes = rtle.Types.Where(t => t != null).ToArray()!;
                 Logger.Warn($"ReflectionTypeLoadException while reading types from {asm.FullName}; using {asmTypes.Length} loadable types.");
             }
-            
+
             var filtered = asmTypes
                 .Where(t => t is { IsInterface: false })
                 // allow HarmonyPatch types so everything is instrumented
@@ -114,17 +130,17 @@ internal class Patcher
     {
         var name = asm.GetName().Name;
         bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
-        
-        if(!yesDisplay) 
+
+        if (!yesDisplay)
             Logger.Info($"Patched {asm.GetName().Name}");
-            
+
         return yesDisplay;
     }
 
     private static bool IsNamespaceWhitelisted(string? @namespace)
     {
-        if  (@namespace == null) return false;
-        
+        if (@namespace == null) return false;
+
         for (int i = 0; i < Whitelist.Count; i++)
         {
             if (@namespace.Contains(Whitelist[i]))
@@ -135,7 +151,7 @@ internal class Patcher
 
         return false;
     }
-    
+
     private void PatchMethod(MethodInfo method, Type type)
     {
         try
@@ -195,17 +211,17 @@ internal class Patcher
             if (m.ContainsGenericParameters) return false;
             if (m.IsGenericMethod || m.IsGenericMethodDefinition) return false;
         }
-        catch  { return false; }
-        
+        catch { return false; }
+
 
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
-        
+
         if (m.GetMethodBody() == null) return false;
 
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
-        
+
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
 

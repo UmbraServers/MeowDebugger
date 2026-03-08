@@ -20,8 +20,9 @@ public class ConfigDebugger
 #if EXILED_RELEASE
         public bool IsEnabled { get; set; } = true;
         public bool Debug { get; set; }
+        public bool ShouldPatchLabApiPlugins { get; set; } = true;
 #endif
-    
+
     /// <summary>
     /// Gets or sets the list of Blacklisted DLLs.
     /// </summary>
