@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections;
+using System.IO;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -15,36 +15,64 @@ internal static class MethodMetrics
 {
     private static readonly ConcurrentDictionary<MethodBase, Stats> _map = new();
     private static readonly ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
-    private static readonly AsyncLocal<Stack<(MethodBase Method, double BeforeTps)>> _stack = new();
+    
+    [ThreadStatic]
+    private static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)>? _stackValue;
+
+    private static readonly ConcurrentDictionary<string, long> _flame = new();
 
     public static void Enter(MethodBase? method)
     {
         if (method == null) return;
-        var stack = _stack.Value ??= new Stack<(MethodBase, double)>();
-        stack.Push((method, GetClampedTps()));
+
+        var stack = _stackValue ??= new Stack<(MethodBase, long, double)>();
+        stack.Push((method, 0, GetClampedTps()));
     }
 
     public static void Exit(MethodBase? method, long elapsedTicks)
     {
         if (method == null) return;
-        var stack = _stack.Value;
+        var stack = _stackValue ??= new Stack<(MethodBase, long, double)>();
         if (stack == null || stack.Count == 0) return;
+
         var popped = stack.Pop();
         if (!ReferenceEquals(popped.Method, method)) return;
+
+
+        long exclusiveTicks = elapsedTicks - popped.ChildTicks;
+        if (exclusiveTicks < 0) exclusiveTicks = 0;
+
+        var frames = stack
+            .Reverse()
+            .Select(s => FormatMethodName(s.Method))
+            .ToList();
+
+        frames.Add(FormatMethodName(method));
+        string key = string.Join(";", frames);
+
+        if (_flame.Count < 100_000) 
+        {
+            _flame.AddOrUpdate(key, exclusiveTicks, (_, old) => old + exclusiveTicks);
+        }
 
         double beforeTps = popped.BeforeTps;
         double afterTps = GetClampedTps();
 
         var s = _map.GetOrAdd(method, _ => new Stats());
-        s.Add(elapsedTicks, beforeTps, afterTps);
 
+        s.Add(exclusiveTicks, beforeTps, afterTps);
         if (stack.Count > 0)
         {
-            var parent = stack.Peek().Method;
-            var map = _children.GetOrAdd(parent, _ => new ConcurrentDictionary<MethodBase, Stats>());
-            var childStats = map.GetOrAdd(method, _ => new Stats());
-            childStats.Add(elapsedTicks, beforeTps, afterTps);
+            var parent = stack.Pop();
+            stack.Push((parent.Method, parent.ChildTicks + elapsedTicks, parent.BeforeTps));
         }
+    }
+
+    private static string FormatMethodName(MethodBase m)
+    {
+        return m.DeclaringType != null
+            ? $"{m.DeclaringType.FullName}.{m.Name}"
+            : m.Name;
     }
 
     private static double GetClampedTps()
@@ -64,6 +92,89 @@ internal static class MethodMetrics
                         .ToArray();
 
         return BuildReport(items, includeChildren: false);
+    }
+
+    public static void ExportFlameGraph(string path)
+    {
+        var snapshot = _flame.ToArray();
+
+        double ticksPerUs = Stopwatch.Frequency / 1_000_000.0;
+
+        using var sw = new StreamWriter(path, append: false, Encoding.UTF8)
+        {
+            NewLine = "\n" 
+        };
+
+        foreach (var kv in snapshot)
+        {
+            if (kv.Value <= 0)
+            {
+                continue;
+            }
+
+            long us = (long)(kv.Value / ticksPerUs);
+
+            if (us <= 0)
+            {
+                us = 1;
+            }  
+
+            sw.WriteLine($"{kv.Key} {us}");
+        }
+
+        _flame.Clear();
+    }
+
+    public static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
+    {
+        var results = new List<(MethodBase, Stats.Snapshot)>();
+        foreach (var key in _map.Keys.ToArray())
+        {
+            if (_map.TryGetValue(key, out var stats))
+            {
+                var snap = stats.SnapshotAndReset();
+                if (snap.Count > 0)
+                    results.Add((key, snap));
+            }
+        }
+        return results.ToArray();
+    }
+
+    public static void ExportCsv(string path)
+    {
+        var items = SnapshotAllAndReset();
+
+        double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Method,Count,TotalMs,AvgMs,MinMs,MaxMs,TpsBefore,TpsAfter,TpsDrop");
+
+        foreach (var it in items)
+        {
+            var s = it.Snap;
+
+            string name = it.Method.DeclaringType != null
+                ? $"{it.Method.DeclaringType.FullName}.{it.Method.Name}"
+                : it.Method.Name;
+
+            double totalMs = ToMs(s.TotalTicks);
+            double avgMs = ToMs(s.AvgTicks);
+            double minMs = ToMs(s.MinTicks);
+            double maxMs = ToMs(s.MaxTicks);
+            double tpsDrop = s.BeforeTpsAvg - s.AfterTpsAvg;
+
+            sb.AppendLine($"{name}," +
+                          $"{s.Count}," +
+                          $"{totalMs:0.###}," +
+                          $"{avgMs:0.###}," +
+                          $"{minMs:0.###}," +
+                          $"{maxMs:0.###}," +
+                          $"{s.BeforeTpsAvg:0.###}," +
+                          $"{s.AfterTpsAvg:0.###}," +
+                          $"{tpsDrop:0.###}");
+        }
+
+        File.WriteAllText(path, sb.ToString());
     }
 
     public static string ReportAndReset(IEnumerable<string> methodNames)
@@ -86,9 +197,63 @@ internal static class MethodMetrics
         return BuildReport(items, includeChildren: true);
     }
 
+    public static void ExportHeatmapHtml(string path)
+    {
+
+        var items = SnapshotAllAndReset();
+
+        if (items.Length == 0)
+        {
+            return;
+        }
+
+        double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
+
+        double maxTotal = items.Max(i => ToMs(i.Snap.TotalTicks));
+
+        var sb = new StringBuilder();
+        sb.AppendLine("<html><body><table border='1' style='border-collapse:collapse;'>");
+        sb.AppendLine("<tr><th>Method</th><th>Total(ms)</th><th>Avg(ms)</th><th>TPS Drop</th></tr>");
+
+        foreach (var tuplethingy in items)
+        {
+            var s = tuplethingy.Snap;
+
+            double totalMs = ToMs(s.TotalTicks);
+            double avgMs = ToMs(s.AvgTicks);
+            double tpsDrop = s.BeforeTpsAvg - s.AfterTpsAvg;
+
+            double ratio = maxTotal > 0 ? totalMs / maxTotal : 0;
+
+            int r = (int)(ratio * 255);
+            int g = (int)((1 - ratio) * 255);
+
+            string color = $"#{r:X2}{g:X2}00";
+
+            string name = tuplethingy.Method.DeclaringType != null
+                ? $"{tuplethingy.Method.DeclaringType.FullName}.{tuplethingy.Method.Name}"
+                : tuplethingy.Method.Name;
+
+            sb.AppendLine(
+                $"<tr style='background-color:{color}'>" +
+                $"<td>{name}</td>" +
+                $"<td>{totalMs:0.###}</td>" +
+                $"<td>{avgMs:0.###}</td>" +
+                $"<td>{tpsDrop:0.###}</td>" +
+                $"</tr>");
+        }
+
+        sb.AppendLine("</table></body></html>");
+
+        File.WriteAllText(path, sb.ToString());
+    }
+
     private static string BuildReport((MethodBase Method, Stats.Snapshot Snap)[] items, bool includeChildren)
     {
-        if (items.Length == 0) return null;
+        if (items.Length == 0)
+        {
+            return "No metrics collected yet.";
+        }
 
         double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
 
@@ -161,13 +326,13 @@ internal static class MethodMetrics
 
     private static string DangerToColorHex(int danger)
     {
-        double t = (danger - 1) / 9.0; // 0 for danger=1, 1 for danger=10
+        double t = (danger - 1) / 9.0;
         int r = (int)(t * 255);
         int g = (int)((1 - t) * 255);
         return $"{r:X2}{g:X2}00";
     }
 
-    private sealed class Stats
+    public sealed class Stats
     {
         private long _total;
         private int _count;

@@ -1,60 +1,58 @@
-﻿using System;
+﻿using HarmonyLib;
+using LabApi.Features.Console;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using HarmonyLib;
-using LabApi.Features.Console;
 using LabApi.Loader;
-using LabApi.Loader.Features.Plugins;
-using Mono.CompilerServices.SymbolWriter;
 
 namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    private static readonly string[] Blacklisted = ["CedModV3", "0Harmony", "NVorbis", "Mono.Posix", "SemanticVersioning", "System.Buffers", "System.ComponentModel.DataAnnotations", "System.Memory", "System.Numerics.Vectors", "System.Runtime.CompilerServices.Unsafe", "System.ValueTuple"];
-
+    private static List<string> Blacklisted => MeowDebugger.Instance!.Config!.BlacklistAssemblies;
+    private static List<string> Whitelist => MeowDebugger.Instance!.Config!.WhitelistNamespaces;
     public readonly Type[] types;
 
     private readonly Harmony _harmony;
 
     private readonly MethodInfo _prefixMethod;
-    private readonly MethodInfo _postfixMethod;
+    private readonly MethodInfo _finalizerMethod;
 
     public int PatchedMethods = 0;
 
     public Patcher(Harmony harmony)
     {
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
-
-        // Validate that Patch.Prefix/Postfix exist and have the right visibility
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
-        _postfixMethod = typeof(Patch.Patch).GetMethod("Postfix", BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Patch.Postfix (static, non-public) not found.");
+        _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)
+                           ?? throw new InvalidOperationException("Patch.Finalizer (static, non-public) not found.");
+        
+        HashSet<Assembly> assemblySet = new HashSet<Assembly>();
+        Assembly[] assemblies = assemblySet.ToArray();
 
-        // Prefer assemblies known to the plugin loader so we don't accidentally
-        // trigger static constructors in unrelated system assemblies.
-        var assemblySet = new HashSet<Assembly>();
-
+        Assembly gameAsm = typeof(ReferenceHub).Assembly;
+        
         try
         {
-                    foreach (Assembly asm in PluginLoader.Plugins.Values)
-                        if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
-                            assemblySet.Add(asm);
+            if (!gameAsm.IsDynamic && !IsBlacklisted(gameAsm))
+                assemblySet.Add(gameAsm);
+            
+            foreach (Assembly asm in PluginLoader.Plugins.Values)
+                if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                    assemblySet.Add(asm);
                     
-                    foreach (Assembly asm in PluginLoader.Dependencies)
-                        if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
-                            assemblySet.Add(asm);
+            foreach (Assembly asm in PluginLoader.Dependencies)
+                if (!asm.IsDynamic && asm != global::MeowDebugger.MeowDebugger.Assembly && !IsBlacklisted(asm))
+                    assemblySet.Add(asm);
         }
         catch (Exception e)
         {
             Logger.Warn($"Failed to query PluginLoader: {e.Message}");
         }
-
-        var assemblies = assemblySet.ToArray();
 
         var allTypes = new List<Type>();
         foreach (var asm in assemblies)
@@ -69,7 +67,7 @@ internal class Patcher
                 asmTypes = rtle.Types.Where(t => t != null).ToArray()!;
                 Logger.Warn($"ReflectionTypeLoadException while reading types from {asm.FullName}; using {asmTypes.Length} loadable types.");
             }
-
+            
             var filtered = asmTypes
                 .Where(t => t is { IsInterface: false })
                 // allow HarmonyPatch types so everything is instrumented
@@ -82,17 +80,6 @@ internal class Patcher
         }
 
         types = allTypes.ToArray();
-    }
-    
-    private static bool IsBlacklisted(Assembly asm)
-    {
-        var name = asm.GetName().Name;
-        bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
-        
-        if(!yesDisplay) 
-            Logger.Info($"Patched {asm.GetName().Name}");
-            
-        return yesDisplay;
     }
 
     public void PatchMethods()
@@ -109,7 +96,6 @@ internal class Patcher
         {
             foreach (MethodInfo method in EnumeratePatchableMethods(type))
             {
-                // Optional per-method ignore: supports short and "FullName::Method"
                 var fullKey = $"{type.FullName}::{method.Name}";
                 /*var cfg = Plugin.Instance.Config;
                 if ((cfg.IgnoreMethods?.Contains(method.Name) ?? false) ||
@@ -124,11 +110,36 @@ internal class Patcher
         Logger.Info($"Tried patching {tried} methods across {types.Length} types; successfully patched {PatchedMethods}.");
     }
 
+    private static bool IsBlacklisted(Assembly asm)
+    {
+        var name = asm.GetName().Name;
+        bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
+        
+        if(!yesDisplay) 
+            Logger.Info($"Patched {asm.GetName().Name}");
+            
+        return yesDisplay;
+    }
+
+    private static bool IsNamespaceWhitelisted(string? @namespace)
+    {
+        if  (@namespace == null) return false;
+        
+        for (int i = 0; i < Whitelist.Count; i++)
+        {
+            if (@namespace.Contains(Whitelist[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    
     private void PatchMethod(MethodInfo method, Type type)
     {
         try
         {
-            // Avoid double-patching if this ran before (domain reload, etc.)
             var info = Harmony.GetPatchInfo(method);
             if (info?.Owners?.Contains(_harmony.Id) == true)
             {
@@ -139,7 +150,7 @@ internal class Patcher
             _harmony.Patch(
                 original: method,
                 prefix: new HarmonyMethod(_prefixMethod),
-                postfix: new HarmonyMethod(_postfixMethod)
+                finalizer: new HarmonyMethod(_finalizerMethod)
             );
 
             PatchedMethods++;
@@ -154,13 +165,17 @@ internal class Patcher
         }
     }
 
-    // --- Helpers -------------------------------------------------------------
     private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
+        if (t == null || !IsNamespaceWhitelisted(t.Namespace))
+            yield break;
+
         const BindingFlags flags =
-            BindingFlags.Public | BindingFlags.NonPublic |
-            BindingFlags.Instance | BindingFlags.Static |
-            BindingFlags.DeclaredOnly;
+        BindingFlags.Public |
+        BindingFlags.NonPublic |
+        BindingFlags.Instance |
+        BindingFlags.Static |
+        BindingFlags.DeclaredOnly;
 
         foreach (var m in t.GetMethods(flags))
             if (CanPatchRegular(m))
@@ -170,18 +185,30 @@ internal class Patcher
     private static bool CanPatchRegular(MethodInfo? m)
     {
         if (m == null) return false;
-
-        // Skip *all* special-name methods (covers get/set/add/remove/op_ and explicit iface impls like IFoo.Bar)
-        if (m.IsSpecialName) return false;
-
-        // Explicit interface implementations often appear as Name.Contains(".")
-        if (m.Name.IndexOf('.') >= 0) return false;
-
         if (m.IsAbstract) return false;
-        if (m.ContainsGenericParameters) return false;
+        if (m.Name.Contains("<")) return false;
+        if (m.Name == "MoveNext") return false;
+        if (m.Name == "System.Collections.IEnumerator.Reset") return false;
+
+        try
+        {
+            if (m.ContainsGenericParameters) return false;
+            if (m.IsGenericMethod || m.IsGenericMethodDefinition) return false;
+        }
+        catch  { return false; }
+        
+
+        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
+            return false;
+        
         if (m.GetMethodBody() == null) return false;
 
-        // Coroutines / iterator state machines break when patched
+        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
+            return false;
+        
+        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
+            return false;
+
         if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;
         if (typeof(IEnumerator).IsAssignableFrom(m.ReturnType)) return false;
 
