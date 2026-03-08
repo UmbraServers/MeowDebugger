@@ -11,10 +11,13 @@ The features the plugin currently has:
  - In-Game Reporter
  - Intelligent Danger System
 
+ ## How to see flamegraph
+ use the command "reporter flame" and then go to this website [speedscope](https://www.speedscope.app/) to allow you to see them
+
  # How to Install?
  Go to [Releases](https://github.com/UmbraServers/MeowDebugger/releases),
  Depending on what version you wanna use you need to do the following
-
+ 
 ## LabAPI
 Place it in the Following folder depending on your OS:
   - Windows: `%AppData%\SCP Secret Laboratory\LabAPI\plugins\global`
