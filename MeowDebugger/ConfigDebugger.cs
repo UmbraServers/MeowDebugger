@@ -12,7 +12,7 @@ public sealed class ConfigDebugger
     /// Gets or sets the list of Blacklisted DLLs.
     /// </summary>
     [Description("It prevents the following dlls to be debugged")]
-    public List<string> Blacklist { get; set; } =
+    public List<string> BlacklistAssemblies { get; set; } =
     [
         "CedModV3",
         "0Harmony",
@@ -25,5 +25,11 @@ public sealed class ConfigDebugger
         "System.Numerics.Vectors",
         "System.Runtime.CompilerServices.Unsafe",
         "System.ValueTuple"
+    ];
+
+    public List<string> WhitelistNamespaces { get; set; } =
+    [
+        "InventorySystem",
+        "CommandSystem"
     ];
 }

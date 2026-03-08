@@ -12,7 +12,8 @@ namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    private static List<string> Blacklisted;
+    private static List<string> Blacklisted => MeowDebugger.Instance!.Config!.BlacklistAssemblies;
+    private static List<string> Whitelist => MeowDebugger.Instance!.Config!.WhitelistNamespaces;
     public readonly Type[] types;
 
     private readonly Harmony _harmony;
@@ -24,7 +25,6 @@ internal class Patcher
 
     public Patcher(Harmony harmony)
     {
-        Blacklisted = MeowDebugger.Instance!.Config!.Blacklist;
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
@@ -67,10 +67,14 @@ internal class Patcher
                 asmTypes = rtle.Types.Where(t => t != null).ToArray()!;
                 Logger.Warn($"ReflectionTypeLoadException while reading types from {asm.FullName}; using {asmTypes.Length} loadable types.");
             }
-
+            
             var filtered = asmTypes
                 .Where(t => t is { IsInterface: false })
-                .Where(t => t.FullName == null || !t.FullName.Contains("Discord"));
+                // allow HarmonyPatch types so everything is instrumented
+                // skip compiler generated types (e.g. coroutine state machines)
+                .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+                // skip types with static constructors to avoid premature dependency initialization
+                .Where(t => t.TypeInitializer == null);
 
             allTypes.AddRange(filtered);
         }
@@ -116,6 +120,21 @@ internal class Patcher
             
         return yesDisplay;
     }
+
+    private static bool IsNamespaceWhitelisted(string? @namespace)
+    {
+        if  (@namespace == null) return false;
+        
+        for (int i = 0; i < Whitelist.Count; i++)
+        {
+            if (@namespace.Contains(Whitelist[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
     
     private void PatchMethod(MethodInfo method, Type type)
     {
@@ -148,7 +167,7 @@ internal class Patcher
 
     private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
-        if (t == null)
+        if (t == null || !IsNamespaceWhitelisted(t.Namespace))
             yield break;
 
         const BindingFlags flags =
@@ -166,24 +185,25 @@ internal class Patcher
     private static bool CanPatchRegular(MethodInfo? m)
     {
         if (m == null) return false;
+        if (m.IsAbstract) return false;
+        if (m.Name.Contains("<")) return false;
+        if (m.Name == "MoveNext") return false;
+        if (m.Name == "System.Collections.IEnumerator.Reset") return false;
+
+        try
+        {
+            if (m.ContainsGenericParameters) return false;
+            if (m.IsGenericMethod || m.IsGenericMethodDefinition) return false;
+        }
+        catch  { return false; }
+        
 
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
             return false;
-
-        if (m.IsAbstract) return false;
-        if (m.ContainsGenericParameters) return false;
+        
         if (m.GetMethodBody() == null) return false;
 
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
-            return false;
-
-        if (m.DeclaringType.Name.Contains("<"))
-            return false;
-        
-        if (m.Name == "MoveNext")
-            return false;
-
-        if (m.Name == "System.Collections.IEnumerator.Reset")
             return false;
         
         if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
