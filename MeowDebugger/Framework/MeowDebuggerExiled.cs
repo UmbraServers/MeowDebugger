@@ -1,6 +1,7 @@
 ﻿#if EXILED_RELEASE
 using System;
 using System.Reflection;
+using Exiled.API.Enums;
 using Exiled.API.Features;
 using HarmonyLib;
 using MeowDebugger.API;
@@ -13,7 +14,9 @@ public class MeowDebuggerExiled  : Plugin<ConfigDebugger>
     public override string Name { get; } = BuildSetting.PluginName;
     public override string Author { get; } = BuildSetting.Author;
     public override Version Version { get; } = GeneralUtils.Assembly.GetName().Version;
-    
+
+    public override PluginPriority Priority { get; } = PluginPriority.Lowest;
+
     /// <summary>
     /// Gets the harmony to use for the API.
     /// </summary>
