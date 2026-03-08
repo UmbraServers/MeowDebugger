@@ -374,19 +374,15 @@ internal static class MethodMetrics
             if (count == 0) { min = 0; max = 0; }
             return new Snapshot(total, count, min, max, avg, beforeAvg, afterAvg);
         }
-
-        public readonly struct Snapshot
-        {
-            public Snapshot(long totalTicks, int count, long minTicks, long maxTicks, long avgTicks, double beforeTpsAvg, double afterTpsAvg)
-            { TotalTicks = totalTicks; Count = count; MinTicks = minTicks; MaxTicks = maxTicks; AvgTicks = avgTicks; BeforeTpsAvg = beforeTpsAvg; AfterTpsAvg = afterTpsAvg; }
-
-            public long TotalTicks { get; }
-            public int Count { get; }
-            public long MinTicks { get; }
-            public long MaxTicks { get; }
-            public long AvgTicks { get; }
-            public double BeforeTpsAvg { get; }
-            public double AfterTpsAvg { get; }
-        }
+        
+        public readonly record struct Snapshot(
+            long TotalTicks,
+            int Count,
+            long MinTicks,
+            long MaxTicks,
+            long AvgTicks,
+            double BeforeTpsAvg,
+            double AfterTpsAvg
+        );
     }
 }
