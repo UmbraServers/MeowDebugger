@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using CommandSystem;
 using LabApi.Features.Wrappers;
 using LabApi.Loader.Features.Paths;
@@ -34,43 +35,66 @@ public class ReporterCommand : ICommand
             return true;
         }
 
-        string first = arguments.Array[arguments.Offset]!.ToLowerInvariant();
+        string sub = arguments.At(0).ToLowerInvariant();
+        var rest = arguments.Skip(1).ToArray();
 
-        if (first == "enable")
+        switch (sub)
         {
-            GeneralUtils.EnableTool();
-            response = "Method metrics enabled.";
-            return true;
+            case "enable":
+                GeneralUtils.EnableTool();
+                response = "Method metrics enabled.";
+                return true;
+
+            case "disable":
+                GeneralUtils.DisableTool();
+                response = "Method metrics disabled.";
+                return true;
+
+            case "top":
+                if (rest.Length > 0 && int.TryParse(rest[0], out int topN))
+                {
+                    response = WithTps(MethodMetrics.ReportAndReset(topN));
+                    return true;
+                }
+
+                response = "Usage: reporter top <count>";
+                return false;
+
+            case "flame":
+                string flameName = rest.Length > 0 ? rest[0] : "flamegraph";
+                string path = Path.Combine(PathManager.Configs.FullName, $"{flameName}.txt");
+                MethodMetrics.ExportFlameGraph(path);
+                response = $"Flame graph exported to {path}";
+                return true;
+
+            case "filter":
+                if (rest.Length == 0)
+                {
+                    response = "Usage: reporter filter <method1> [method2] ...";
+                    return false;
+                }
+
+                response = WithTps(MethodMetrics.ReportAndReset(rest) ?? "No matching methods.");
+                return true;
+
+            case "help":
+                response = GetHelp();
+                return true;
+
+            default:
+                response = $"Unknown subcommand '{sub}'. Use 'reporter help' for usage.";
+                return false;
         }
-
-        if (first == "disable")
-        {
-            GeneralUtils.DisableTool();
-            response = "Method metrics disabled.";
-            return true;
-        }
-
-        if (int.TryParse(first, out int result))
-        {
-            response = WithTps(MethodMetrics.ReportAndReset(result));
-            return true;
-        }
-
-        if (first.Contains("flame"))
-        {
-            string path = Path.Combine(PathManager.Configs.FullName, $"{first}.txt");
-            MethodMetrics.ExportFlameGraph(path);
-            response = $"Flame graph exported to {path}";
-            return true;
-        }
-
-        var names = new List<string>();
-        for (int i = 0; i < arguments.Count; i++)
-            names.Add(arguments.Array[arguments.Offset + i]!);
-
-        response = WithTps(MethodMetrics.ReportAndReset(names) ?? "No matching methods.");
-        return true;
     }
+
+    private static string GetHelp() =>
+    "reporter              - Report & reset all metrics\n" +
+    "reporter enable       - Enable method metrics\n" +
+    "reporter disable      - Disable method metrics\n" +
+    "reporter top <N>      - Report top N slowest methods\n" +
+    "reporter flame [name] - Export flame graph (optional filename)\n" +
+    "reporter filter <...> - Report specific methods by name\n" +
+    "reporter help         - Show this help";
 
     private static string WithTps(string? metrics)
     {

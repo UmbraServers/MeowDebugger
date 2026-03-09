@@ -22,30 +22,36 @@ public class RunForXSecondsProfiler : ICommand
     {
         if (arguments.Count <= 0)
         {
-            response = "You need to pass the amount of time.";
-            return true;
-        }
-
-        string first = arguments.Array[arguments.Offset]!.ToLowerInvariant();
-        string seconds = arguments.Array[arguments.Offset + 1]!.ToLowerInvariant();
-
-        if (!int.TryParse(first, out int result))
-        {
-            response = "Please pass a valid number.";
+            response = "Usage: <seconds> [filename]";
             return false;
         }
 
-        int bots = int.TryParse(seconds, out int r) ? r : 1;
-        
-        string path = Path.Combine(PathManager.Configs.FullName, "flame-generated.txt");
-        
-        MEC.Timing.CallDelayed(result, () =>
+        if (!int.TryParse(arguments.At(0), out int delay) || delay <= 0)
+        {
+            response = "Please pass a valid positive number for seconds.";
+            return false;
+        }
+
+        string fileName = arguments.Count > 1
+            ? arguments.At(1).Trim()
+            : "flame-generated";
+
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = "flame-generated";
+
+        fileName = Path.GetFileName(fileName);
+        if (!fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            fileName += ".txt";
+
+        string path = Path.Combine(PathManager.Configs.FullName, fileName);
+
+        MEC.Timing.CallDelayed(delay, () =>
         {
             MethodMetrics.ExportFlameGraph(path);
             Logger.Info($"Flame graph exported to {path}");
         });
 
-        response = "wait for " + result + $" seconds, then check the file {path} for the flame graph.";
+        response = $"Flame graph will be exported in {delay}s to: {path}";
         return true;
     }
 }
