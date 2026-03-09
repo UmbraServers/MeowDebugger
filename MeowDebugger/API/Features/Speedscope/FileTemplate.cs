@@ -1,5 +1,7 @@
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.Serialization;
 
 namespace MeowDebugger.API.Features.Speedscope;
 
@@ -12,33 +14,27 @@ public class FileTemplate
     /// <summary>
     /// Represents the struct for the <see cref="File"/>.
     /// </summary>
+    [Serializable]
     public struct File
     {
         /// <summary>
         /// The file's schema.
         /// </summary>
-        [DataMember(Name = "$schema")]
+        [JsonProperty("$schema")]
         public string schema = "https://www.speedscope.app/file-format-schema.json";
 
         /// <summary>
-        ///  Data shared between profiles.
-        /// </summary>
-        public Frame[] frames;
-        
-        /// <summary>
         /// List of profile definitions
         /// </summary>
-        public SampledProfile[] profiles;
+        public List<SampledProfile> profiles;
 
-        /// <summary>
-        /// The name of the contained profile group. If omitted, will use the name of the file itself.
-        /// </summary>
-        public string? name;
-
+        /// <inheritdoc/>
+        public Shared shared;
+       
         /// <summary>
         /// The index into the `profiles` array that should be displayed upon file load. If omitted, will default to displaying the first profile in the file.
         /// </summary>
-        public int activeProfileIndex;
+        public int? activeProfileIndex;
         
         /// <summary>
         /// The name of the program which exported this profile. This isn't
@@ -46,27 +42,52 @@ public class FileTemplate
         /// was generating it! Recommended format is "name@version". e.g. when the
         /// file was exported by speedscope v0.6.0 itself, it will be
         /// </summary>
-        public string exporter => "Meow Debugger.";
-        
+        public string? exporter = "Meow Debugger.";
+
+        /// <summary>
+        /// The name of the contained profile group. If omitted, will use the name of the file itself.
+        /// </summary>
+        public string? name;
+
         /// <summary>
         /// Creates an instance of <see cref="File"/>
         /// </summary>
-        /// <param name="frames"><see cref="frames"/></param>
+        /// <param name="shared"><see cref="shared"/></param>
         /// <param name="profiles"><see cref="profiles"/></param>
         /// <param name="name"><see cref="name"/></param>
-        /// <param name="activeProfileIndex"><see cref="activeProfileIndex"/></param>
-        public File(Frame[] frames, SampledProfile[] profiles, string? name, int activeProfileIndex)
+        public File(Shared shared, List<SampledProfile> profiles, string? name)
         {
-            this.frames = frames;
+            this.shared = shared;
             this.profiles = profiles;
             this.name = name;
-            this.activeProfileIndex = activeProfileIndex;
         }
     }
-    
+
+    /// <summary>
+    /// Represents the struct for the shared data profiles frames.
+    /// </summary>
+    [Serializable]
+    public struct Shared
+    {
+        /// <summary>
+        /// The list of <see cref="Frame"/>.
+        /// </summary>
+        public List<Frame> frames;
+
+        /// <summary>
+        /// Creates an instance of <see cref="Shared"/>
+        /// </summary>
+        /// <param name="frames"><see cref="frames"/></param>
+        public Shared(List<Frame> frames)
+        {
+            this.frames = frames;
+        }
+    }
+
     /// <summary>
     /// Represents the struct for the <see cref="SampledProfile"/>.
     /// </summary>
+    [Serializable]
     public struct SampledProfile
     {
         /// <summary>
@@ -74,7 +95,7 @@ public class FileTemplate
         /// different kinds of profiles to be contained and each type to be part of
         /// a discriminated union.
         /// </summary>
-        public string type => "sampled";
+        public string type = "sampled";
         
         /// <summary>
         /// Name of the profile. Typically, a filename for the source of the profile.
@@ -104,13 +125,13 @@ public class FileTemplate
         /// <summary>
         /// List of the sampled stacks.
         /// </summary>
-        public long[] samples; 
+        public List<List<long>> samples; 
         
         /// <summary>
         /// The weight of the sample at the given index. Should have
         /// the same length as the samples array.
         /// </summary>
-        public long[] weights;
+        public List<long> weights;
         
         /// <summary>
         /// Creates an instance of <see cref="SampledProfile"/>
@@ -121,24 +142,35 @@ public class FileTemplate
         /// <param name="endValue"></param>
         /// <param name="samples"></param>
         /// <param name="weights"></param>
-        public SampledProfile(string name, string unit, long startValue, long endValue, long[] samples, long[] weights)
+        public SampledProfile(string name, string unit, long startValue, long endValue, List<List<long>> samples, List<long> weights)
         {
             this.name = name;
             this.unit = unit;
+            this.startValue = startValue;
+            this.endValue = endValue;
             this.samples = samples;
             this.weights = weights;
         }
     }
-    
+
     /// <summary>
     /// Represents the struct for the <see cref="Frame"/>.
     /// </summary>
+    [Serializable]
     public struct Frame
     {
         /// <summary>
         /// The frame's name.
         /// </summary>
         public string name;
+
+#pragma warning disable CS1591
+        public string? file;
+
+        public long? line;
+
+        public long? col;
+#pragma warning restore CS1591
 
         /// <summary>
         /// Creates an instance of <see cref="Frame"/>
@@ -148,5 +180,20 @@ public class FileTemplate
         {
             this.name = name;
         }
+    }
+    /// <summary>
+    /// Represents the enum for the value unit of the <see cref="SampledProfile"/>.
+    /// </summary>
+    [Serializable]
+    public enum ValueUnit
+    {
+#pragma warning disable CS1591
+        bytes,
+        microseconds,
+        milliseconds,
+        nanoseconds,
+        none,
+        seconds,
+#pragma warning restore CS1591
     }
 }

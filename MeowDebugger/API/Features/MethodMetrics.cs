@@ -373,8 +373,7 @@ internal static class MethodMetrics
             return new Snapshot(total, count, min, max, avg, beforeAvg, afterAvg);
         }
         
-        public readonly struct Snapshot(
-            MethodBase Method,
+        public record Snapshot(
             long TotalTicks,
             int Count,
             long MinTicks,

@@ -7,6 +7,7 @@ using LabApi.Features.Wrappers;
 using LabApi.Loader.Features.Paths;
 using MeowDebugger.API;
 using MeowDebugger.API.Features;
+using MeowDebugger.API.Features.Speedscope;
 
 namespace MeowDebugger.Commands;
 
@@ -64,6 +65,7 @@ public class ReporterCommand : ICommand
                 string flameName = rest.Length > 0 ? rest[0] : "flamegraph";
                 string path = Path.Combine(PathManager.Configs.FullName, $"{flameName}.txt");
                 MethodMetrics.ExportFlameGraph(path);
+                ExportToFlamescope.ExportJsonFile();
                 response = $"Flame graph exported to {path}";
                 return true;
 
