@@ -22,7 +22,7 @@ public class RunForXSecondsProfiler : ICommand
     {
         if (arguments.Count <= 0)
         {
-            response = "You need to pass the ammount of time.";
+            response = "You need to pass the amount of time.";
             return true;
         }
 
@@ -36,11 +36,6 @@ public class RunForXSecondsProfiler : ICommand
         }
 
         int bots = int.TryParse(seconds, out int r) ? r : 1;
-
-        for (int i = 0; i < bots; i++)
-        {
-            DummyUtils.SpawnDummy();
-        }
         
         string path = Path.Combine(PathManager.Configs.FullName, "flame-generated.txt");
         
