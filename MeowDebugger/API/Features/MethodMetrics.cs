@@ -13,13 +13,12 @@ namespace MeowDebugger.API.Features;
 
 internal static class MethodMetrics
 {
-    private static readonly ConcurrentDictionary<MethodBase, Stats> _map = new();
-    private static readonly ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
+    private readonly static ConcurrentDictionary<MethodBase, Stats> _map = new();
+    private readonly static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
+    private readonly static ConcurrentDictionary<string, long> _flame = new();
     
     [ThreadStatic]
     private static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)>? _stackValue;
-
-    private static readonly ConcurrentDictionary<string, long> _flame = new();
 
     public static void Enter(MethodBase? method)
     {
@@ -32,17 +31,18 @@ internal static class MethodMetrics
     public static void Exit(MethodBase? method, long elapsedTicks)
     {
         if (method == null) return;
-        var stack = _stackValue ??= new Stack<(MethodBase, long, double)>();
-        if (stack == null || stack.Count == 0) return;
+        
+        Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> stack = MethodMetrics._stackValue ??= new Stack<(MethodBase, long, double)>();
+        
+        if (stack.Count == 0) return;
 
-        var popped = stack.Pop();
+        (MethodBase Method, long ChildTicks, double BeforeTps) popped = stack.Pop();
         if (!ReferenceEquals(popped.Method, method)) return;
-
 
         long exclusiveTicks = elapsedTicks - popped.ChildTicks;
         if (exclusiveTicks < 0) exclusiveTicks = 0;
 
-        var frames = stack
+        List<string> frames = stack
             .Reverse()
             .Select(s => FormatMethodName(s.Method))
             .ToList();
@@ -50,9 +50,9 @@ internal static class MethodMetrics
         frames.Add(FormatMethodName(method));
         string key = string.Join(";", frames);
 
-        if (_flame.Count < 100_000) 
+        if (MethodMetrics._flame.Count < 100_000) 
         {
-            _flame.AddOrUpdate(key, exclusiveTicks, (_, old) => old + exclusiveTicks);
+            MethodMetrics._flame.AddOrUpdate(key, exclusiveTicks, (_, old) => old + exclusiveTicks);
         }
 
         double beforeTps = popped.BeforeTps;
@@ -85,7 +85,7 @@ internal static class MethodMetrics
 
     public static string ReportAndReset(int topN = 10)
     {
-        var items = _map.Select(kv => (Method: kv.Key, Snap: kv.Value.SnapshotAndReset()))
+        (MethodBase Method, Stats.Snapshot Snap)[] items = _map.Select(kv => (Method: kv.Key, Snap: kv.Value.SnapshotAndReset()))
                         .Where(x => x.Snap.Count > 0)
                         .OrderByDescending(x => x.Snap.TotalTicks)
                         .Take(topN)
@@ -100,10 +100,8 @@ internal static class MethodMetrics
 
         double ticksPerUs = Stopwatch.Frequency / 1_000_000.0;
 
-        using var sw = new StreamWriter(path, append: false, Encoding.UTF8)
-        {
-            NewLine = "\n" 
-        };
+        using StreamWriter sw = new StreamWriter(path, append: false, Encoding.UTF8);
+        sw.NewLine = "\n";
 
         foreach (var kv in snapshot)
         {
@@ -125,17 +123,17 @@ internal static class MethodMetrics
         _flame.Clear();
     }
 
-    public static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
+    private static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
     {
-        var results = new List<(MethodBase, Stats.Snapshot)>();
-        foreach (var key in _map.Keys.ToArray())
+        List<(MethodBase, Stats.Snapshot)> results = new List<(MethodBase, Stats.Snapshot)>();
+        foreach (MethodBase? key in MethodMetrics._map.Keys.ToArray())
         {
-            if (_map.TryGetValue(key, out var stats))
-            {
-                var snap = stats.SnapshotAndReset();
-                if (snap.Count > 0)
-                    results.Add((key, snap));
-            }
+            if (!MethodMetrics._map.TryGetValue(key, out Stats? stats)) 
+                continue;
+            
+            Stats.Snapshot snap = stats.SnapshotAndReset();
+            if (snap.Count > 0)
+                results.Add((key, snap));
         }
         return results.ToArray();
     }
@@ -146,7 +144,7 @@ internal static class MethodMetrics
 
         double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
 
-        var sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         sb.AppendLine("Method,Count,TotalMs,AvgMs,MinMs,MaxMs,TpsBefore,TpsAfter,TpsDrop");
 
         foreach (var it in items)
@@ -375,7 +373,8 @@ internal static class MethodMetrics
             return new Snapshot(total, count, min, max, avg, beforeAvg, afterAvg);
         }
         
-        public readonly record struct Snapshot(
+        public readonly struct Snapshot(
+            MethodBase Method,
             long TotalTicks,
             int Count,
             long MinTicks,
