@@ -1,13 +1,14 @@
-﻿using System;
-using System.IO;
+﻿using LabApi.Features.Wrappers;
+using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
-using LabApi.Features.Wrappers;
 
 namespace MeowDebugger.API.Features;
 
@@ -18,54 +19,78 @@ internal static class MethodMetrics
     private readonly static ConcurrentDictionary<string, long> _flame = new();
     
     [ThreadStatic]
-    private static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)>? _stackValue;
+    public readonly static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> StackValue = new();
 
     public static void Enter(MethodBase? method)
     {
-        if (method == null) return;
+        if (method == null)
+        {
+            return;
+        }
 
-        var stack = _stackValue ??= new Stack<(MethodBase, long, double)>();
-        stack.Push((method, 0, GetClampedTps()));
+        StackValue.Push((method, 0, GetClampedTps()));
     }
 
     public static void Exit(MethodBase? method, long elapsedTicks)
     {
-        if (method == null) return;
-        
-        Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> stack = MethodMetrics._stackValue ??= new Stack<(MethodBase, long, double)>();
-        
-        if (stack.Count == 0) return;
-
-        (MethodBase Method, long ChildTicks, double BeforeTps) popped = stack.Pop();
-        if (!ReferenceEquals(popped.Method, method)) return;
-
-        long exclusiveTicks = elapsedTicks - popped.ChildTicks;
-        if (exclusiveTicks < 0) exclusiveTicks = 0;
-
-        List<string> frames = stack
-            .Reverse()
-            .Select(s => FormatMethodName(s.Method))
-            .ToList();
-
-        frames.Add(FormatMethodName(method));
-        string key = string.Join(";", frames);
-
-        if (MethodMetrics._flame.Count < 100_000) 
+        if (method == null)
         {
-            MethodMetrics._flame.AddOrUpdate(key, exclusiveTicks, (_, old) => old + exclusiveTicks);
+            return;
+        }
+        
+        if (StackValue.Count == 0)
+        {
+            _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
+            {
+                double tps = GetClampedTps();
+                stat.Add(elapsedTicks, tps, tps);
+                return stat;
+            });
+            return;
         }
 
-        double beforeTps = popped.BeforeTps;
+        (MethodBase Method, long ChildTicks, double BeforeTps) = StackValue.Peek();
+
+        if (!ReferenceEquals(Method, method))
+        {
+            _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
+            {
+                double tps = GetClampedTps();
+                stat.Add(elapsedTicks, tps, tps);
+                return stat;
+            });
+            return;
+        }
+
+        //MethodBase[] frames = _stackValue.Select(x => x.Method).Reverse().ToArray();
+        //frames[frames.Length] = method;
+
+        long exclusiveTicks = elapsedTicks - ChildTicks;
+
+        if (exclusiveTicks < 0)
+        {
+            exclusiveTicks = 0;
+        }
+
+        //frames.Add(FormatMethodName(method));
+        //string key = string.Join(";", frames);
+
+        double beforeTps = BeforeTps;
         double afterTps = GetClampedTps();
 
-        var s = _map.GetOrAdd(method, _ => new Stats());
-
-        s.Add(exclusiveTicks, beforeTps, afterTps);
-        if (stack.Count > 0)
+        _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
         {
-            var parent = stack.Pop();
-            stack.Push((parent.Method, parent.ChildTicks + elapsedTicks, parent.BeforeTps));
+            stat.Add(exclusiveTicks, beforeTps, afterTps);
+            return stat;
+        });
+
+        if (StackValue.Count <= 0)
+        {
+            return;
         }
+
+        var parent = StackValue.Pop();
+        StackValue.Push((parent.Method, parent.ChildTicks + elapsedTicks, parent.BeforeTps));
     }
 
     private static string FormatMethodName(MethodBase m)
@@ -329,6 +354,8 @@ internal static class MethodMetrics
         int g = (int)((1 - t) * 255);
         return $"{r:X2}{g:X2}00";
     }
+
+    public record StackEntry(MethodBase Method, double BeforeTps, long Token);
 
     public sealed class Stats
     {

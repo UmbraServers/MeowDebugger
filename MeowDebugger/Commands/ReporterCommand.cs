@@ -65,7 +65,11 @@ public class ReporterCommand : ICommand
                 string flameName = rest.Length > 0 ? rest[0] : "flamegraph";
                 string path = Path.Combine(PathManager.Configs.FullName, $"{flameName}.txt");
                 MethodMetrics.ExportFlameGraph(path);
-                ExportToFlamescope.ExportJsonFile();
+                if (!ExportToFlamescope.ExportJsonFile())
+                {
+                    response = "Unable to export speedscope graph.";
+                    return false;
+                }
                 response = $"Flame graph exported to {path}";
                 return true;
 
