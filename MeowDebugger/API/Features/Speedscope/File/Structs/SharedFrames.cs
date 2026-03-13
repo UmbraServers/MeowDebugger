@@ -1,11 +1,13 @@
-﻿using MeowDebugger.API.Features.Speedscope.File.Structs;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-
-namespace MeowDebugger.API.Features.Speedscope.File
+namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
-    public class SharedFrames
+    public struct SharedFrames
     {
         /// <summary>
         /// The list of <see cref="Frame"/>.
@@ -23,3 +25,4 @@ namespace MeowDebugger.API.Features.Speedscope.File
         }
     }
 }
+

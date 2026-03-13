@@ -1,4 +1,5 @@
 ﻿using MeowDebugger.API.Features.Speedscope.File.Profiles;
+using MeowDebugger.API.Features.Speedscope.File.Structs;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 
