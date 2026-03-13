@@ -1,6 +1,5 @@
 ﻿using LabApi.Features.Wrappers;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -61,6 +60,8 @@ internal static class MethodMetrics
             });
             return;
         }
+
+        StackValue.Pop();
 
         //MethodBase[] frames = _stackValue.Select(x => x.Method).Reverse().ToArray();
         //frames[frames.Length] = method;

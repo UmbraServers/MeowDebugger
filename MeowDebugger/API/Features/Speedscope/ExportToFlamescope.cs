@@ -7,13 +7,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Text.Json;
-using UnityEngine;
-using YamlDotNet.Core.Tokens;
-using static MeowDebugger.API.Features.Speedscope.FileTemplate;
-using SpeedScopeFile = MeowDebugger.API.Features.Speedscope.FileTemplate.File;
-using Logger = LabApi.Features.Console.Logger;
 
 namespace MeowDebugger.API.Features.Speedscope;
 
@@ -108,7 +101,7 @@ public class ExportToFlamescope
         List<SampledProfile> profiles = new List<SampledProfile>();
         Shared shared = new Shared(frames);
 
-        SampledProfile timeProfile = new SampledProfile("Time", nameof(ValueUnit.microseconds), 0, timeWeights.Sum(), sampleStacks, timeWeights);
+        SampledProfile timeProfile = new SampledProfile("Time", ValueUnit.Microseconds, 0, timeWeights.Sum(), sampleStacks, timeWeights);
 
         try
         {
