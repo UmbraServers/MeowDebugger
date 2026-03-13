@@ -1,4 +1,5 @@
 ﻿using LabApi.Features.Wrappers;
+using MeowDebugger.API.Features.Speedscope.File.Events;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Timers;
 
 namespace MeowDebugger.API.Features;
 
@@ -15,17 +17,24 @@ internal static class MethodMetrics
 {
     private readonly static ConcurrentDictionary<MethodBase, Stats> _map = new();
     private readonly static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
-    private readonly static ConcurrentDictionary<string, long> _flame = new();
     
     [ThreadStatic]
     public readonly static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> StackValue = new();
 
-    public static void Enter(MethodBase? method)
+    [ThreadStatic]
+    public static ConcurrentStack<BaseEvent>? Events;
+
+    public static void Enter(MethodBase? method, long time)
     {
         if (method == null)
         {
             return;
         }
+
+        ConcurrentStack<BaseEvent> events = Events ??= new ConcurrentStack<BaseEvent>();
+
+        OpenFrameEvent openFrameEvent = new(Patcher.GetMethodIndex(method), time);
+        events.Push(openFrameEvent);
 
         StackValue.Push((method, 0, GetClampedTps()));
     }
@@ -63,18 +72,12 @@ internal static class MethodMetrics
 
         StackValue.Pop();
 
-        //MethodBase[] frames = _stackValue.Select(x => x.Method).Reverse().ToArray();
-        //frames[frames.Length] = method;
-
         long exclusiveTicks = elapsedTicks - ChildTicks;
 
         if (exclusiveTicks < 0)
         {
             exclusiveTicks = 0;
         }
-
-        //frames.Add(FormatMethodName(method));
-        //string key = string.Join(";", frames);
 
         double beforeTps = BeforeTps;
         double afterTps = GetClampedTps();
@@ -89,6 +92,11 @@ internal static class MethodMetrics
         {
             return;
         }
+
+        ConcurrentStack<BaseEvent> events = Events ??= new ConcurrentStack<BaseEvent>();
+
+        CloseFrameEvent openFrameEvent = new(Patcher.GetMethodIndex(method), exclusiveTicks);
+        events.Push(openFrameEvent);
 
         var parent = StackValue.Pop();
         StackValue.Push((parent.Method, parent.ChildTicks + elapsedTicks, parent.BeforeTps));
@@ -120,35 +128,6 @@ internal static class MethodMetrics
         return BuildReport(items, includeChildren: false);
     }
 
-    public static void ExportFlameGraph(string path)
-    {
-        var snapshot = _flame.ToArray();
-
-        double ticksPerUs = Stopwatch.Frequency / 1_000_000.0;
-
-        using StreamWriter sw = new StreamWriter(path, append: false, Encoding.UTF8);
-        sw.NewLine = "\n";
-
-        foreach (var kv in snapshot)
-        {
-            if (kv.Value <= 0)
-            {
-                continue;
-            }
-
-            long us = (long)(kv.Value / ticksPerUs);
-
-            if (us <= 0)
-            {
-                us = 1;
-            }  
-
-            sw.WriteLine($"{kv.Key} {us}");
-        }
-
-        _flame.Clear();
-    }
-
     private static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
     {
         List<(MethodBase, Stats.Snapshot)> results = new List<(MethodBase, Stats.Snapshot)>();
@@ -162,43 +141,6 @@ internal static class MethodMetrics
                 results.Add((key, snap));
         }
         return results.ToArray();
-    }
-
-    public static void ExportCsv(string path)
-    {
-        var items = SnapshotAllAndReset();
-
-        double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
-
-        StringBuilder sb = new StringBuilder();
-        sb.AppendLine("Method,Count,TotalMs,AvgMs,MinMs,MaxMs,TpsBefore,TpsAfter,TpsDrop");
-
-        foreach (var it in items)
-        {
-            var s = it.Snap;
-
-            string name = it.Method.DeclaringType != null
-                ? $"{it.Method.DeclaringType.FullName}.{it.Method.Name}"
-                : it.Method.Name;
-
-            double totalMs = ToMs(s.TotalTicks);
-            double avgMs = ToMs(s.AvgTicks);
-            double minMs = ToMs(s.MinTicks);
-            double maxMs = ToMs(s.MaxTicks);
-            double tpsDrop = s.BeforeTpsAvg - s.AfterTpsAvg;
-
-            sb.AppendLine($"{name}," +
-                          $"{s.Count}," +
-                          $"{totalMs:0.###}," +
-                          $"{avgMs:0.###}," +
-                          $"{minMs:0.###}," +
-                          $"{maxMs:0.###}," +
-                          $"{s.BeforeTpsAvg:0.###}," +
-                          $"{s.AfterTpsAvg:0.###}," +
-                          $"{tpsDrop:0.###}");
-        }
-
-        File.WriteAllText(path, sb.ToString());
     }
 
     public static string ReportAndReset(IEnumerable<string> methodNames)
@@ -355,8 +297,6 @@ internal static class MethodMetrics
         int g = (int)((1 - t) * 255);
         return $"{r:X2}{g:X2}00";
     }
-
-    public record StackEntry(MethodBase Method, double BeforeTps, long Token);
 
     public sealed class Stats
     {

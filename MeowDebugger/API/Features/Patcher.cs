@@ -1,17 +1,22 @@
 ﻿using HarmonyLib;
 using LabApi.Features.Console;
+using LabApi.Features.Wrappers;
+using LabApi.Loader;
+using MeowDebugger.API.Features.Speedscope.File.Structs;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using LabApi.Loader;
 
 namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
+    public static List<Frame> Frames = new List<Frame>();
+    public static Dictionary<MethodBase, int> MethodIndexes = new Dictionary<MethodBase, int>();
+
     private static List<string> Blacklisted => ConfigDebugger.Instance!.BlacklistAssemblies;
     private static List<string> Whitelist => ConfigDebugger.Instance!.WhitelistNamespaces;
     
@@ -24,6 +29,7 @@ internal class Patcher
 
     public Patcher(Harmony harmony)
     {
+
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
@@ -127,6 +133,24 @@ internal class Patcher
         Logger.Info($"Tried patching {tried} methods across {_types.Length} types; successfully patched {_patchedMethods}.");
     }
 
+    public static int StoreIndex(MethodBase method)
+    {
+        if (MethodIndexes.TryGetValue(method, out int id))
+            return id;
+
+        id = Frames.Count + 1;
+
+        string methodName = method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
+
+        Frame frame = new Frame(methodName);
+        Frames.Add(frame);
+
+        MethodIndexes[method] = id;
+        return id;
+    }
+
+    public static int GetMethodIndex(MethodBase method) => MethodIndexes.TryGetValue(method, out int id) ? id : 0;
+
     private static bool IsBlacklisted(Assembly asm)
     {
         string? name = asm.GetName().Name;
@@ -169,6 +193,8 @@ internal class Patcher
                 prefix: new HarmonyMethod(_prefixMethod),
                 finalizer: new HarmonyMethod(_finalizerMethod)
             );
+
+            StoreIndex(method);
 
             _patchedMethods++;
         }
@@ -219,12 +245,6 @@ internal class Patcher
             return false;
 
         if (m.GetMethodBody() == null) return false;
-
-        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
-            return false;
-
-        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
-            return false;
 
         if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;
         
