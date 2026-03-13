@@ -1,5 +1,5 @@
 ﻿using LabApi.Features.Wrappers;
-using MeowDebugger.API.Features.Speedscope.File.Events;
+using MeowDebugger.API.Features.Speedscope.File.Structs;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,6 +10,8 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Timers;
+using TMPro;
+using UnityEngine;
 
 namespace MeowDebugger.API.Features;
 
@@ -17,41 +19,41 @@ internal static class MethodMetrics
 {
     private readonly static ConcurrentDictionary<MethodBase, Stats> _map = new();
     private readonly static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
-    
+
     [ThreadStatic]
     public readonly static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> StackValue = new();
 
     [ThreadStatic]
-    public static ConcurrentStack<BaseEvent>? Events;
+    public static List<FrameEvent>? Events;
 
-    public static void Enter(MethodBase? method, long time)
+    private static readonly double TicksToNano = Math.Pow(10, 9) / Stopwatch.Frequency;
+    private static double TicksToNanoSeconds(long ticks) => ticks * TicksToNano;
+
+    public static void Enter(MethodBase? method, long startTime)
     {
         if (method == null)
         {
             return;
         }
-
-        ConcurrentStack<BaseEvent> events = Events ??= new ConcurrentStack<BaseEvent>();
-
-        OpenFrameEvent openFrameEvent = new(Patcher.GetMethodIndex(method), time);
-        events.Push(openFrameEvent);
 
         StackValue.Push((method, 0, GetClampedTps()));
     }
 
-    public static void Exit(MethodBase? method, long elapsedTicks)
+    public static void Exit(MethodBase? method, long endTime, long startTime)
     {
         if (method == null)
         {
             return;
         }
-        
+
+        long elapsedTime = endTime - startTime;
+
         if (StackValue.Count == 0)
         {
             _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
             {
                 double tps = GetClampedTps();
-                stat.Add(elapsedTicks, tps, tps);
+                stat.Add(elapsedTime, tps, tps);
                 return stat;
             });
             return;
@@ -64,7 +66,7 @@ internal static class MethodMetrics
             _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
             {
                 double tps = GetClampedTps();
-                stat.Add(elapsedTicks, tps, tps);
+                stat.Add(elapsedTime, tps, tps);
                 return stat;
             });
             return;
@@ -72,7 +74,7 @@ internal static class MethodMetrics
 
         StackValue.Pop();
 
-        long exclusiveTicks = elapsedTicks - ChildTicks;
+        long exclusiveTicks = elapsedTime - ChildTicks;
 
         if (exclusiveTicks < 0)
         {
@@ -88,18 +90,25 @@ internal static class MethodMetrics
             return stat;
         });
 
-        if (StackValue.Count <= 0)
+        if (StackValue.Count > 0)
         {
+            var parent = StackValue.Pop();
+            parent.ChildTicks += elapsedTime;
+            StackValue.Push(parent);
             return;
         }
 
-        ConcurrentStack<BaseEvent> events = Events ??= new ConcurrentStack<BaseEvent>();
+        if (TicksToNanoSeconds(elapsedTime) >= ConfigDebugger.Instance!.NanosecondsThreshold)
+        {
+            List<FrameEvent> events = Events ??= new();
 
-        CloseFrameEvent openFrameEvent = new(Patcher.GetMethodIndex(method), exclusiveTicks);
-        events.Push(openFrameEvent);
+            if (Patcher.GetMethodIndex(method) == -1)
+                return;
 
-        var parent = StackValue.Pop();
-        StackValue.Push((parent.Method, parent.ChildTicks + elapsedTicks, parent.BeforeTps));
+            // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
+            events.Add(new FrameEvent(EventType.OpenFrame, Patcher.GetMethodIndex(method), TicksToNanoSeconds(startTime)));
+            events.Add(new FrameEvent(EventType.CloseFrame, Patcher.GetMethodIndex(method), TicksToNanoSeconds(endTime)));
+        }
     }
 
     private static string FormatMethodName(MethodBase m)
@@ -128,14 +137,14 @@ internal static class MethodMetrics
         return BuildReport(items, includeChildren: false);
     }
 
-    private static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
+    public static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
     {
         List<(MethodBase, Stats.Snapshot)> results = new List<(MethodBase, Stats.Snapshot)>();
         foreach (MethodBase? key in MethodMetrics._map.Keys.ToArray())
         {
-            if (!MethodMetrics._map.TryGetValue(key, out Stats? stats)) 
+            if (!MethodMetrics._map.TryGetValue(key, out Stats? stats))
                 continue;
-            
+
             Stats.Snapshot snap = stats.SnapshotAndReset();
             if (snap.Count > 0)
                 results.Add((key, snap));
@@ -340,7 +349,7 @@ internal static class MethodMetrics
             if (count == 0) { min = 0; max = 0; }
             return new Snapshot(total, count, min, max, avg, beforeAvg, afterAvg);
         }
-        
+
         public record Snapshot(
             long TotalTicks,
             int Count,

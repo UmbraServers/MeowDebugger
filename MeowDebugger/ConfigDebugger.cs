@@ -60,4 +60,10 @@ public class ConfigDebugger
         "InventorySystem",
         "CommandSystem"
     ];
+
+    [Description("Minimal nanoseconds for the speedscope file / 1ms = 1000000ns / ")]
+    public double NanosecondsThreshold { get; set; } = 200000;
+
+    [Description("The output of the profiler")]
+    public string SpeedscopeOutputPath { get; set; } = "";
 }

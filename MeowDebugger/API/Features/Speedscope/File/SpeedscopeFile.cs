@@ -35,7 +35,7 @@ namespace MeowDebugger.API.Features.Speedscope.File
         /// file was exported by speedscope v0.6.0 itself, it will be
         /// </summary>
         [JsonProperty("exporter")]
-        public string? Exporter = "Meow Debugger.";
+        public string? Exporter = "MeowDebugger@1.1.0";
 
         /// <summary>
         /// The name of the contained profile group. If omitted, will use the name of the file itself.

@@ -27,7 +27,7 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
         /// All event values will be displayed relative to this startValue.
         /// </summary>
         [JsonProperty("startValue")]
-        public long StartValue { get; }
+        public double StartValue { get; }
 
         /// <summary>
         /// The final value of the profile. This will typically be a timestamp. This
@@ -37,13 +37,13 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
         /// profile.
         /// </summary>
         [JsonProperty("endValue")]
-        public long EndValue { get; }
+        public double EndValue { get; }
 
-        internal BaseProfile(string Name, string unit, long startValue, long endValue)
+        internal BaseProfile(string Name, string unit, double startValue, double endValue)
         {
             this.Name = Name;
             this.Unit = unit;
-            this.EndValue = startValue;
+            this.StartValue = startValue;
             this.EndValue = endValue;
 
         }
