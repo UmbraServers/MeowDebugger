@@ -64,25 +64,24 @@ public class ReporterCommand : ICommand
                 return false;
 
             case "flame":
-                // Does not work yet 
-                //if (args.Length > 0 && int.TryParse(args[0], out int timer))
-                //{
-                //    MethodMetrics.Events?.Clear();
-                //    MethodMetrics.MethodIndexes?.Clear();
-                //    MethodMetrics.Frames?.Clear();
+                if (args.Length > 0 && int.TryParse(args[0], out int timer))
+                {
+                    MethodMetrics.FrameEvents.Clear();
+                    MethodMetrics.MethodIndexes.Clear();
+                    MethodMetrics.Frames.Clear();
 
-                //    Timing.CallDelayed(timer, () =>
-                //    {
-                //        if (!ExportToSpeedscope.ExportJsonFile(out string path))
-                //        {
-                //            Logger.Error("Unable to export speedscope graph.");
-                //            return;
-                //        }
-                //        Logger.Info($"Speedscope graph exported to {path}");
-                //    });
-                //    response = $"Speedscope graph will be exported in {timer} seconds.";
-                //    return true;
-                //}
+                    Timing.CallDelayed(timer, () =>
+                    {
+                        if (!ExportToSpeedscope.ExportJsonFile(out string path))
+                        {
+                            Logger.Error("Unable to export speedscope graph.");
+                            return;
+                        }
+                        Logger.Info($"Speedscope graph exported to {path}");
+                    });
+                    response = $"Speedscope graph will be exported in {timer} seconds.";
+                    return true;
+                }
 
                 if (!ExportToSpeedscope.ExportJsonFile(out string path))
                 {
