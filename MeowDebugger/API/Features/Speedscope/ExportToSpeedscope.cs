@@ -46,6 +46,7 @@ public class ExportToSpeedscope
 
         try
         {
+            // TODO: Check the generated json and if something is wrong, show actually wtf is going on with
             string jsonString = JsonConvert.SerializeObject(file, Formatting.Indented);
             string path = ConfigDebugger.Instance!.SpeedscopeOutputPath == string.Empty
 #if EXILED_RELEASE
@@ -58,7 +59,6 @@ public class ExportToSpeedscope
 
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
             string namespaces = string.Join("-", ConfigDebugger.Instance!.WhitelistNamespaces);
-
 
             string filename = $"{namespaces}_{timestamp}.json";
             filePath = Path.Combine(path, filename);
@@ -89,6 +89,7 @@ public class ExportToSpeedscope
             counts[frameEvent.FrameIndex] += 1;
         }
 
+        // TODO: Calculate self count and total count 
         // key is frame index and value is count
         foreach (var kvp in counts)
         {
@@ -107,23 +108,17 @@ public class ExportToSpeedscope
 
         for (int i = 0; i < frameEvents.Count; i++)
         {
-            if (i % 2 != 0)
+            if (i % 2 != 0 || i + 1 > frameEvents.Count)
             {
                 continue;
             }
 
             FrameEvent openFrame = frameEvents[i];
-
-            if (i + 1 > frameEvents.Count)
-            {
-                continue;
-            }
-
             FrameEvent closedFrame = frameEvents[i + 1];
 
             if (openFrame.FrameIndex != closedFrame.FrameIndex)
             {
-                Logger.Info("please check this shit : " + frameEvents[openFrame.FrameIndex] + " and " + frameEvents[closedFrame.FrameIndex]);
+                Logger.Info("please check this shit inside the file: " + frameEvents[openFrame.FrameIndex] + " and " + frameEvents[closedFrame.FrameIndex]);
                 continue;
             }
 
