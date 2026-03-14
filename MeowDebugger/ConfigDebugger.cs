@@ -33,6 +33,9 @@ public class ConfigDebugger
         public bool ShouldPatchLabApiPlugins { get; set; } = true;
 #endif
 
+    [Description("If it should patch on loading for players rather than on the boot of the plugin")]
+    public bool ShouldPatchOnWaitingForPlayers { get; set; } = true;
+        
     /// <summary>
     /// Gets or sets the list of Blacklisted DLLs.
     /// </summary>
