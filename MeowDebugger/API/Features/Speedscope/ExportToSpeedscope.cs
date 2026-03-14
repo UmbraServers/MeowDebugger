@@ -17,7 +17,7 @@ namespace MeowDebugger.API.Features.Speedscope;
 /// <summary>
 /// Provides functionality to export profiling data to a JSON file in a format compatible with Flamescope.
 /// </summary>
-public class ExportToFlamescope
+public class ExportToSpeedscope
 {
     /// <summary>
     /// Exports the json file.
@@ -34,10 +34,10 @@ public class ExportToFlamescope
             return false;
         }
 
-        List<FrameEvent> events = Events.OrderBy(e => e.At).ToList();
+        List<FrameEvent> events = [.. Events.OrderBy(e => e.At)];
 
-        var samples = new List<List<long>>();
-        var weights = new List<long>();
+        List<List<long>> samples = [];
+        List<long> weights = [];
 
         foreach ((MethodBase method, Stats.Snapshot snapshot) in snapshots)
         {
@@ -45,7 +45,7 @@ public class ExportToFlamescope
                 continue;
 
             // I'm taking this data from Zero's implementation, idk but I'm pretty sure something is borked there and I'm too lazy to check it :trollface:
-            int frameIndex = Patcher.GetMethodIndex(method);
+            int frameIndex = GetMethodIndex(method);
 
             samples.Add(new List<long> { frameIndex });
             weights.Add(snapshot.Count);
@@ -54,25 +54,8 @@ public class ExportToFlamescope
         EventedProfile timeProfile = new("Time (ns)", ValueUnit.Nanoseconds, events.First().At, events.Last().At, events);
         SampledProfile countProfile = new("Call Count (MIGHT BE INNACURATE!!!)", ValueUnit.None, 0, samples.Count, samples, weights);
 
-        //List<Frame> frames = new();
-
-        //foreach (Frame frame in Patcher.Frames)
-        //{
-        //    if (Events.Select(frameEvent => frameEvent.FrameIndex).Contains(frame.Index))
-        //    {
-        //        frames.Add(frame);
-        //    }
-        //}
-
-        //if (frames.Count == 0)
-        //{
-        //    Logger.Warn("No frames to export. PLEASE CONTACT UNBISTRACKTED!!!!!!! or make sure you are patching the right namespaces");
-        //    return false;
-        //}
-
-
         // TODO: Reduce file size, I need to update all the indexes for each event and that's annoying, I might do a pr in the original speedscope repo so I can get it from an key called "index", but idk
-        SpeedscopeFile file = new SpeedscopeFile([timeProfile, countProfile], new SharedFrames(Patcher.Frames), "MeowDebugger@1.0.0");
+        SpeedscopeFile file = new([timeProfile, countProfile], new SharedFrames(Frames), "MeowDebugger@1.0.0");
 
         Events.Clear();
 

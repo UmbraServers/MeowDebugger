@@ -14,8 +14,6 @@ namespace MeowDebugger.API.Features;
 
 internal class Patcher
 {
-    public static List<Frame> Frames { get; } = new List<Frame>();
-    public static Dictionary<MethodBase, int> MethodIndexes { get; } = new Dictionary<MethodBase, int>();
     private static List<string> Blacklisted => ConfigDebugger.Instance!.BlacklistAssemblies;
     private static List<string> Whitelist => ConfigDebugger.Instance!.WhitelistNamespaces;
     
@@ -132,25 +130,6 @@ internal class Patcher
         Logger.Info($"Tried patching {tried} methods across {_types.Length} types; successfully patched {_patchedMethods}.");
     }
 
-    public static int StoreIndex(MethodBase method)
-    {
-        if (MethodIndexes.TryGetValue(method, out int id))
-            return id;
-
-        id = Frames.Count;
-
-        string methodName = method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
-
-        Frame frame = new Frame(methodName, method.Module.FullyQualifiedName, id);
-
-        Frames.Add(frame);
-
-        MethodIndexes[method] = id;
-        return id;
-    }
-
-    public static int GetMethodIndex(MethodBase method) => MethodIndexes.TryGetValue(method, out int id) ? id : -1;
-
     private static bool IsBlacklisted(Assembly asm)
     {
         string? name = asm.GetName().Name;
@@ -193,8 +172,6 @@ internal class Patcher
                 prefix: new HarmonyMethod(_prefixMethod),
                 finalizer: new HarmonyMethod(_finalizerMethod)
             );
-
-            StoreIndex(method);
 
             _patchedMethods++;
         }

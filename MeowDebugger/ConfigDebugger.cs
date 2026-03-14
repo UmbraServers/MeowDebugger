@@ -61,7 +61,7 @@ public class ConfigDebugger
         "CommandSystem"
     ];
 
-    [Description("Minimal nanoseconds for the speedscope file / 1ms = 1000000ns / ")]
+    [Description("Minimal nanoseconds for the speedscope file / 1ms = 1000000ns / (I don't recommend setting this to 0) ")]
     public double NanosecondsThreshold { get; set; } = 200000;
 
     [Description("The output of the profiler")]

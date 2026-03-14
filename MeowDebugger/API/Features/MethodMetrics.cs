@@ -17,14 +17,18 @@ namespace MeowDebugger.API.Features;
 
 internal static class MethodMetrics
 {
-    private readonly static ConcurrentDictionary<MethodBase, Stats> _map = new();
-    private readonly static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
+    private static ConcurrentDictionary<MethodBase, Stats> _map = new();
+    private static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
 
     [ThreadStatic]
     public readonly static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> StackValue = new();
 
     [ThreadStatic]
     public static List<FrameEvent>? Events;
+
+    public static Dictionary<MethodBase, int> MethodIndexes { get; } = [];
+    public static List<Frame> Frames { get; } = [];
+
 
     private static readonly double TicksToNano = Math.Pow(10, 9) / Stopwatch.Frequency;
     private static double TicksToNanoSeconds(long ticks) => ticks * TicksToNano;
@@ -102,21 +106,35 @@ internal static class MethodMetrics
         {
             List<FrameEvent> events = Events ??= new();
 
-            if (Patcher.GetMethodIndex(method) == -1)
+            int index = StoreIndex(method);
+
+            if (index == -1)
                 return;
 
             // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
-            events.Add(new FrameEvent(EventType.OpenFrame, Patcher.GetMethodIndex(method), TicksToNanoSeconds(startTime)));
-            events.Add(new FrameEvent(EventType.CloseFrame, Patcher.GetMethodIndex(method), TicksToNanoSeconds(endTime)));
+            events.Add(new FrameEvent(EventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
+            events.Add(new FrameEvent(EventType.CloseFrame, index, TicksToNanoSeconds(endTime)));
         }
     }
 
-    private static string FormatMethodName(MethodBase m)
+    public static int StoreIndex(MethodBase method)
     {
-        return m.DeclaringType != null
-            ? $"{m.DeclaringType.FullName}.{m.Name}"
-            : m.Name;
+        if (MethodIndexes.TryGetValue(method, out int id))
+            return id;
+
+        id = Frames.Count;
+
+        string methodName = method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
+
+        Frame frame = new Frame(methodName, method.Module.FullyQualifiedName, id);
+
+        Frames.Add(frame);
+
+        MethodIndexes[method] = id;
+        return id;
     }
+
+    public static int GetMethodIndex(MethodBase method) => MethodIndexes.TryGetValue(method, out int id) ? id : -1;
 
     private static double GetClampedTps()
     {
@@ -170,57 +188,6 @@ internal static class MethodMetrics
             .ToArray();
 
         return BuildReport(items, includeChildren: true);
-    }
-
-    public static void ExportHeatmapHtml(string path)
-    {
-
-        var items = SnapshotAllAndReset();
-
-        if (items.Length == 0)
-        {
-            return;
-        }
-
-        double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
-
-        double maxTotal = items.Max(i => ToMs(i.Snap.TotalTicks));
-
-        var sb = new StringBuilder();
-        sb.AppendLine("<html><body><table border='1' style='border-collapse:collapse;'>");
-        sb.AppendLine("<tr><th>Method</th><th>Total(ms)</th><th>Avg(ms)</th><th>TPS Drop</th></tr>");
-
-        foreach (var tuplethingy in items)
-        {
-            var s = tuplethingy.Snap;
-
-            double totalMs = ToMs(s.TotalTicks);
-            double avgMs = ToMs(s.AvgTicks);
-            double tpsDrop = s.BeforeTpsAvg - s.AfterTpsAvg;
-
-            double ratio = maxTotal > 0 ? totalMs / maxTotal : 0;
-
-            int r = (int)(ratio * 255);
-            int g = (int)((1 - ratio) * 255);
-
-            string color = $"#{r:X2}{g:X2}00";
-
-            string name = tuplethingy.Method.DeclaringType != null
-                ? $"{tuplethingy.Method.DeclaringType.FullName}.{tuplethingy.Method.Name}"
-                : tuplethingy.Method.Name;
-
-            sb.AppendLine(
-                $"<tr style='background-color:{color}'>" +
-                $"<td>{name}</td>" +
-                $"<td>{totalMs:0.###}</td>" +
-                $"<td>{avgMs:0.###}</td>" +
-                $"<td>{tpsDrop:0.###}</td>" +
-                $"</tr>");
-        }
-
-        sb.AppendLine("</table></body></html>");
-
-        File.WriteAllText(path, sb.ToString());
     }
 
     private static string BuildReport((MethodBase Method, Stats.Snapshot Snap)[] items, bool includeChildren)
