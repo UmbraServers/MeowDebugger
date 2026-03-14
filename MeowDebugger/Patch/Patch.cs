@@ -9,14 +9,14 @@ internal class Patch
 {
     private static void Prefix(MethodBase __originalMethod, out long __state)
     {
-        MethodMetrics.Enter(__originalMethod);
         __state = Stopwatch.GetTimestamp();
+        MethodMetrics.Enter(__originalMethod, __state);
     }
 
     private static Exception Finalizer(MethodBase __originalMethod, long __state, Exception __exception)
     {
-        long elapsed = Stopwatch.GetTimestamp() - __state;
-        MethodMetrics.Exit(__originalMethod, elapsed);
+        long elapsed = Stopwatch.GetTimestamp();
+        MethodMetrics.Exit(__originalMethod, elapsed, __state);
         return __exception;
     }
 }

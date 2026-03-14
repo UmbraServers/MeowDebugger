@@ -1,12 +1,14 @@
 ﻿using HarmonyLib;
 using LabApi.Features.Console;
+using LabApi.Features.Wrappers;
+using LabApi.Loader;
+using MeowDebugger.API.Features.Speedscope.File.Structs;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using LabApi.Loader;
 
 namespace MeowDebugger.API.Features;
 
@@ -14,30 +16,30 @@ internal class Patcher
 {
     private static List<string> Blacklisted => ConfigDebugger.Instance!.BlacklistAssemblies;
     private static List<string> Whitelist => ConfigDebugger.Instance!.WhitelistNamespaces;
-    public readonly Type[] types;
-
+    
+    private readonly Type[] _types;
     private readonly Harmony _harmony;
-
     private readonly MethodInfo _prefixMethod;
     private readonly MethodInfo _finalizerMethod;
 
-    public int PatchedMethods = 0;
+    private int _patchedMethods;
 
     public Patcher(Harmony harmony)
     {
+
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
         _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)
                            ?? throw new InvalidOperationException("Patch.Finalizer (static, non-public) not found.");
-
-        HashSet<Assembly> assemblySet = new HashSet<Assembly>();
-        Assembly[] assemblies = assemblySet.ToArray();
-
+        
+        Assembly[] assemblies = [];
         Assembly gameAsm = typeof(ReferenceHub).Assembly;
 
         try
         {
+            HashSet<Assembly> assemblySet = [];
+            
             bool shouldPatchLabAPI = true;
 
             if (!gameAsm.IsDynamic && !IsBlacklisted(gameAsm))
@@ -63,15 +65,23 @@ internal class Patcher
             foreach (Assembly asm in PluginLoader.Dependencies)
                 if (!asm.IsDynamic && asm != GeneralUtils.Assembly && !IsBlacklisted(asm) && shouldPatchLabAPI)
                     assemblySet.Add(asm);
-
+            
+            assemblies = assemblySet.ToArray();
         }
         catch (Exception e)
         {
             Logger.Warn($"Failed to query PluginLoader: {e.Message}");
         }
 
-        var allTypes = new List<Type>();
-        foreach (var asm in assemblies)
+        if (assemblies.Length == 0)
+        {
+            Logger.Warn("No assemblies were found to patch.");
+            return;
+        }
+
+        List<Type> allTypes = [];
+        
+        foreach (Assembly asm in assemblies)
         {
             Type[] asmTypes;
             try
@@ -80,11 +90,11 @@ internal class Patcher
             }
             catch (ReflectionTypeLoadException rtle)
             {
-                asmTypes = rtle.Types.Where(t => t != null).ToArray()!;
+                asmTypes = rtle.Types.Where(t => t != null).ToArray();
                 Logger.Warn($"ReflectionTypeLoadException while reading types from {asm.FullName}; using {asmTypes.Length} loadable types.");
             }
 
-            var filtered = asmTypes
+            IEnumerable<Type> filtered = asmTypes
                 .Where(t => t is { IsInterface: false })
                 // allow HarmonyPatch types so everything is instrumented
                 // skip compiler generated types (e.g. coroutine state machines)
@@ -95,12 +105,12 @@ internal class Patcher
             allTypes.AddRange(filtered);
         }
 
-        types = allTypes.ToArray();
+        _types = allTypes.ToArray();
     }
 
     public void PatchMethods()
     {
-        if (types.Length == 0)
+        if (_types.Length == 0)
         {
             Logger.Warn("No types to patch.");
             return;
@@ -108,31 +118,25 @@ internal class Patcher
 
         int tried = 0;
 
-        foreach (Type type in types)
+        foreach (Type type in _types)
         {
             foreach (MethodInfo method in EnumeratePatchableMethods(type))
             {
-                var fullKey = $"{type.FullName}::{method.Name}";
-                /*var cfg = Plugin.Instance.Config;
-                if ((cfg.IgnoreMethods?.Contains(method.Name) ?? false) ||
-                    (cfg.IgnoreMethods?.Contains(fullKey) ?? false))
-                    continue;*/
-
                 tried++;
                 PatchMethod(method, type);
             }
         }
 
-        Logger.Info($"Tried patching {tried} methods across {types.Length} types; successfully patched {PatchedMethods}.");
+        Logger.Info($"Tried patching {tried} methods across {_types.Length} types; successfully patched {_patchedMethods}.");
     }
 
     private static bool IsBlacklisted(Assembly asm)
     {
-        var name = asm.GetName().Name;
+        string? name = asm.GetName().Name;
         bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
 
         if (!yesDisplay)
-            Logger.Info($"Patched {asm.GetName().Name}");
+            Logger.Info($"Found assembly: {asm.GetName().Name}");
 
         return yesDisplay;
     }
@@ -169,7 +173,7 @@ internal class Patcher
                 finalizer: new HarmonyMethod(_finalizerMethod)
             );
 
-            PatchedMethods++;
+            _patchedMethods++;
         }
         catch (NotSupportedException)
         {
@@ -183,7 +187,7 @@ internal class Patcher
 
     private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
     {
-        if (t == null || !IsNamespaceWhitelisted(t.Namespace))
+        if (!IsNamespaceWhitelisted(t.Namespace))
             yield break;
 
         const BindingFlags flags =
@@ -193,7 +197,7 @@ internal class Patcher
         BindingFlags.Static |
         BindingFlags.DeclaredOnly;
 
-        foreach (var m in t.GetMethods(flags))
+        foreach (MethodInfo m in t.GetMethods(flags))
             if (CanPatchRegular(m))
                 yield return m;
     }
@@ -219,15 +223,9 @@ internal class Patcher
 
         if (m.GetMethodBody() == null) return false;
 
-        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
-            return false;
-
-        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
-            return false;
-
         if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;
-        if (typeof(IEnumerator).IsAssignableFrom(m.ReturnType)) return false;
+        
+        return !typeof(IEnumerator).IsAssignableFrom(m.ReturnType);
 
-        return true;
     }
 }

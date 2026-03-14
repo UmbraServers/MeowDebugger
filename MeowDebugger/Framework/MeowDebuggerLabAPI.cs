@@ -4,8 +4,11 @@ using LabApi.Loader.Features.Plugins;
 using LabApi.Loader.Features.Plugins.Enums;
 using MeowDebugger.API;
 
-namespace MeowDebugger;
+namespace MeowDebugger.Framework;
 
+/// <summary>
+/// Represents the class for the LabAPI version of MeowDebugger.
+/// </summary>
 public class MeowDebuggerLabAPI : Plugin<ConfigDebugger>
 {
     /// <inheritdoc/>

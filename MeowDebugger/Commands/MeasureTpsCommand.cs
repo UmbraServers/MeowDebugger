@@ -1,9 +1,9 @@
 ﻿using CommandSystem;
-using Exiled.API.Features;
 using LabApi.Features.Console;
 using MEC;
 using System;
 using System.Collections.Generic;
+using LabApi.Features.Wrappers;
 
 namespace MeowDebugger.Commands;
 
@@ -34,7 +34,7 @@ public class MeasureTpsCommand : ICommand
 
         Timing.RunCoroutine(Measurer(seconds));
 
-        response = $"mesuaring tps for {seconds} look at server console";
+        response = $"Measuring tps for {seconds} look at server console";
         return true;
     }
 
@@ -51,6 +51,6 @@ public class MeasureTpsCommand : ICommand
             yield return Timing.WaitForSeconds(1f);
         }
 
-        Logger.Info($"average tps: {totalTps / samples}");
+        Logger.Info($"Average tps: {totalTps / samples}");
     }
 }
