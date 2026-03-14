@@ -29,7 +29,7 @@ internal static class GeneralUtils
         Harmony ??= new Harmony($"MeowDebugger_{DateTime.Now}");
         _patcher ??= new Patcher(Harmony);
 
-        if (ConfigDebugger.Instance.ShouldPatchOnWaitingForPlayers)
+        if (ConfigDebugger.Instance!.ShouldPatchOnWaitingForPlayers)
             ServerEvents.WaitingForPlayers += OnLoadingPatch;
         else
             _patcher.PatchMethods();
@@ -43,7 +43,7 @@ internal static class GeneralUtils
 
     internal static void OnLoadingPatch()
     {
-        if (isLoaded || isDisabled)
+        if (isLoaded || isDisabled || _patcher == null)
             return;
         
         _patcher.PatchMethods();

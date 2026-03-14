@@ -1,8 +1,9 @@
-﻿namespace MeowDebugger.API.Features.Speedscope.File.Structs
+﻿#pragma warning disable CS1591
+
+namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
-    public struct FrameEventType
+    internal struct FrameEventType
     {
-        // This is kinda strange but a guy in Stackoverflow recommended using structs with const strings for "string interfaces", not sure if that's how I should implement it
         public const string OpenFrame = "O";
         public const string CloseFrame = "C";
     }

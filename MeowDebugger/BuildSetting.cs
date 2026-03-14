@@ -18,5 +18,5 @@ public static class BuildSetting
     /// <summary>
     /// Represents the Plugin's author.
     /// </summary>
-    public const string Author = "NotZer0Two";
+    public const string Author = "NotZer0Two && Unbistrackted";
 }

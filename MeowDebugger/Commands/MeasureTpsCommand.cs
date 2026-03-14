@@ -28,7 +28,7 @@ public class MeasureTpsCommand : ICommand
     {
         if (arguments.Count == 0 || !int.TryParse(arguments.At(0), out int seconds))
         {
-            response = "number";
+            response = "You need to pass a valid number.";
             return false;
         }
 

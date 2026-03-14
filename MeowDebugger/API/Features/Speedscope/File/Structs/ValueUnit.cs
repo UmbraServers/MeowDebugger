@@ -1,4 +1,6 @@
-﻿using MeowDebugger.API.Features.Speedscope.File.Profiles;
+﻿#pragma warning disable CS1591
+
+using MeowDebugger.API.Features.Speedscope.File.Profiles;
 
 namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
@@ -7,7 +9,6 @@ namespace MeowDebugger.API.Features.Speedscope.File.Structs
     /// </summary>
     public struct ValueUnit
     {
-        // This is kinda strange but a guy in Stackoverflow recommended using structs with const strings for "string interfaces", not sure if that's how I should implement it
         public const string Bytes = "bytes";
         public const string Microseconds = "microseconds";
         public const string Milliseconds = "milliseconds";

@@ -4,8 +4,13 @@ using System.Text.Json.Serialization;
 
 namespace MeowDebugger.API.Features.Speedscope.File.Profiles
 {
+    /// <summary>
+    /// Represents a profile that collects and organizes sampled data over a specified range, supporting weighted
+    /// analysis of the samples.
+    /// </summary>
     public class SampledProfile : BaseProfile
     {
+        /// <inheritdoc/>
         [JsonConstructor]
         public SampledProfile(string Name, string unit, long startValue, long endValue, List<List<long>> samples, List<double> weights) : base(Name, unit, startValue, endValue)
         {
@@ -16,11 +21,17 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
         /// <inheritdoc/>
         public override string Type => ProfileType.Sampled;
 
+        /// <summary>
+        /// Gets the list of samples, where each sample is represented as a list of frame indexes.
+        /// </summary>
         [JsonPropertyName("samples")]
-        public List<List<long>> Samples { get; set; } = new();
+        public List<List<long>> Samples { get; } = [];
 
+        /// <summary>
+        /// Gets the list of weights corresponding to each sample.
+        /// </summary>
         [JsonPropertyName("weights")]
-        public List<double> Weights { get; set; } = new();
+        public List<double> Weights { get; } = [];
     }
 }
 

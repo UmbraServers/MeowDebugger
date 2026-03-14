@@ -5,7 +5,7 @@ namespace MeowDebugger.API.Features.Speedscope.File.Structs
     /// <summary>
     /// Represents the struct for the <see cref="Frame"/>.
     /// </summary>
-    public struct Frame
+    public readonly struct Frame
     {
         /// <summary>
         /// Creates an instance of <see cref="Frame"/>
@@ -20,11 +20,14 @@ namespace MeowDebugger.API.Features.Speedscope.File.Structs
         }
 
         /// <summary>
-        /// The frame's name.
+        /// Gets the  <see cref="Frame"/>'s name.
         /// </summary>
         [JsonPropertyName("name")]
         public string Name { get; }
 
+        /// <summary>
+        /// Gets the name of the file associated with <see cref="Frame"/>.
+        /// </summary>
         [JsonPropertyName("file")]
         public string File { get; }
     }

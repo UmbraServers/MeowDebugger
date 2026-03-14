@@ -26,7 +26,8 @@ public class ExportToSpeedscope
     /// <summary>
     /// Exports the json file.
     /// </summary>
-    /// <returns>the json file</returns>
+    /// <param name="filePath">The path of the exported file.</param>
+    /// <returns>If it was able to export the json file.</returns>
     public static bool ExportJsonFile(out string filePath)
     {
         filePath = string.Empty;

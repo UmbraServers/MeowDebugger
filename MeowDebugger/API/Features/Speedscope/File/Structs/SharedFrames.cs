@@ -1,9 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using MeowDebugger.API.Features.Speedscope.File.Profiles;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 
 namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
+    /// <summary>
+    /// Represents a collection of frames that are shared across different <see cref="BaseProfile"/>
+    /// </summary>
     public struct SharedFrames
     {
         /// <summary>

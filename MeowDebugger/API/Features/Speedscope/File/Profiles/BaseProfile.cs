@@ -2,17 +2,29 @@
 
 namespace MeowDebugger.API.Features.Speedscope.File.Profiles
 {
+    /// <summary>
+    /// Serves as the abstract base class for different types of profiles, providing common properties and structure for
+    /// derived profile types.
+    /// </summary>
     [JsonDerivedType(typeof(EventedProfile))]
     [JsonDerivedType(typeof(SampledProfile))]
     public abstract class BaseProfile
     {
-        internal BaseProfile(string Name, string unit, double startValue, double endValue)
+        // TODO: Maybe make this a generic, seems more appropriate idk
+
+        /// <summary>
+        /// Initializes a new instance of <see cref="EventedProfile"/>.
+        /// </summary>
+        /// <param name="name">The unique name that identifies the profile.</param>
+        /// <param name="unit">The unit of measurement for the profile's range, such as 'seconds' or 'meters'.</param>
+        /// <param name="startValue">The starting value of the profile's range.</param>
+        /// <param name="endValue">The ending value of the profile's range.</param>
+        internal BaseProfile(string name, string unit, double startValue, double endValue)
         {
-            this.Name = Name;
+            this.Name = name;
             this.Unit = unit;
             this.StartValue = startValue;
             this.EndValue = endValue;
-
         }
 
         /// <summary>

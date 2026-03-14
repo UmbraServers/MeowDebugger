@@ -5,6 +5,10 @@ using System.Text.Json.Serialization;
 
 namespace MeowDebugger.API.Features.Speedscope.File
 {
+    /// <summary>
+    /// Represents a Speedscope profiling file, including profile definitions, shared frames, and metadata describing
+    /// the exported profiling session.
+    /// </summary>
     public class SpeedscopeFile
     {
         /// <summary>

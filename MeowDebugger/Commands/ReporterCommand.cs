@@ -40,7 +40,7 @@ public class ReporterCommand : ICommand
         }
 
         string command = arguments.At(0).ToLowerInvariant();
-        string[] args = arguments.Skip(1).ToArray();
+        string[] args = [.. arguments.Skip(1)];
 
         switch (command)
         {
@@ -80,6 +80,7 @@ public class ReporterCommand : ICommand
                         }
                         Logger.Info($"Speedscope graph exported to {path}");
                     });
+
                     response = $"Speedscope graph will be exported in {timer} seconds.";
                     return true;
                 }
@@ -89,6 +90,7 @@ public class ReporterCommand : ICommand
                     response = "Unable to export speedscope graph.";
                     return false;
                 }
+
                 response = $"Speedscope graph exported to {path}";
                 return true;
 
