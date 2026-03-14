@@ -7,7 +7,7 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
 {
     public class SampledProfile : BaseProfile
     {
-        public SampledProfile(string Name, string unit, long startValue, long endValue, List<List<long>> samples, List<long> weights) : base(Name, unit, startValue, endValue)
+        public SampledProfile(string Name, string unit, long startValue, long endValue, List<List<long>> samples, List<double> weights) : base(Name, unit, startValue, endValue)
         {
             this.Samples = samples;
             this.Weights = weights;
@@ -20,7 +20,7 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
         public List<List<long>> Samples { get; set; } = new();
 
         [JsonProperty("weights")]
-        public List<long> Weights { get; set; } = new();
+        public List<double> Weights { get; set; } = new();
     }
 }
 

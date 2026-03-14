@@ -26,45 +26,21 @@ public class ExportToSpeedscope
     {
         filePath = string.Empty;
 
-        if (Events == null || Events.Count == 0)
+        if (FrameEvents == null || FrameEvents.Count == 0)
         {
             return false;
         }
 
-        List<FrameEvent> events = [.. Events.OrderBy(e => e.At)];
+        List<FrameEvent> frameEvents = [.. FrameEvents.OrderBy(e => e.At)];
+        List<Frame> frames = [.. Frames];
 
-        Dictionary<int, long> counts = [];
-        List<List<long>> samples = [];
-        List<long> weights = [];
-        List<Frame> frames = Frames.ToList();
+        EventedProfile timeProfile = new("Time (ns)", ValueUnit.Nanoseconds, frameEvents.First().At, frameEvents.Last().At, frameEvents);
+        SampledProfile countProfile = CreateCountProfile(frameEvents, frames, out Dictionary<int, long> counts);
+        SampledProfile timedProfile = CreateAverageMethodTimeProfile(FrameEvents, counts);
 
-        Logger.Info(frames.Count);
+        SpeedscopeFile file = new([timeProfile, countProfile, timedProfile], new SharedFrames(frames), "MeowDebugger@1.0.0");
 
-        foreach (FrameEvent frameEvent in events.Where(frameEvent => frameEvent.Type == EventType.CloseFrame))
-        {
-            if (!counts.ContainsKey(frameEvent.FrameIndex))
-            {
-                counts[frameEvent.FrameIndex] = 1;
-                continue;
-            }
-
-            counts[frameEvent.FrameIndex] += 1;
-        }
-
-        // key is frame index and value is count
-        foreach (var kvp in counts)
-        {
-            samples.Add([kvp.Key]);
-            weights.Add(kvp.Value);
-            frames[kvp.Key] = new Frame($"{Frames[kvp.Key].Name} (x{kvp.Value})", Frames[kvp.Key].File);
-        }
-
-        EventedProfile timeProfile = new("Time (ns)", ValueUnit.Nanoseconds, events.First().At, events.Last().At, events);
-        SampledProfile countProfile = new("Call Count", ValueUnit.None, 0, samples.Count, samples, weights);
-
-        SpeedscopeFile file = new([timeProfile, countProfile], new SharedFrames(frames), "MeowDebugger@1.0.0");
-
-        Events.Clear();
+        FrameEvents.Clear();
         MethodIndexes.Clear();
         Frames.Clear();
 
@@ -94,5 +70,80 @@ public class ExportToSpeedscope
             Logger.Error(ex);
             return false;
         }
+    }
+
+    private static SampledProfile CreateCountProfile(List<FrameEvent> frameEvents, List<Frame> frames, out Dictionary<int, long> counts)
+    {
+        List<List<long>> samples = [];
+        List<double> weights = [];
+        counts = [];
+
+        foreach (FrameEvent frameEvent in frameEvents.Where(frameEvent => frameEvent.Type == FrameEventType.CloseFrame))
+        {
+            if (!counts.ContainsKey(frameEvent.FrameIndex))
+            {
+                counts[frameEvent.FrameIndex] = 1;
+                continue;
+            }
+
+            counts[frameEvent.FrameIndex] += 1;
+        }
+
+        // key is frame index and value is count
+        foreach (var kvp in counts)
+        {
+            samples.Add([kvp.Key]);
+            weights.Add(kvp.Value);
+            frames[kvp.Key] = new Frame($"{Frames[kvp.Key].Name} (x{kvp.Value})", Frames[kvp.Key].File);
+        }
+
+        return new("Call Count", ValueUnit.None, 0, samples.Count, samples, weights);
+    }
+
+    private static SampledProfile CreateAverageMethodTimeProfile(List<FrameEvent> frameEvents, Dictionary<int, long> counts)
+    {
+        // key is frame index and value is average time (event final - event start)
+        Dictionary<int, double> averageFrameTime = [];
+
+        for (int i = 0; i < frameEvents.Count; i++)
+        {
+            if (i % 2 != 0)
+            {
+                continue;
+            }
+
+            FrameEvent openFrame = frameEvents[i];
+
+            if (i + 1 > frameEvents.Count)
+            {
+                continue;
+            }
+
+            FrameEvent closedFrame = frameEvents[i + 1];
+
+            if (openFrame.FrameIndex != closedFrame.FrameIndex)
+            {
+                Logger.Info("please check this shit : " + frameEvents[openFrame.FrameIndex] + " and " + frameEvents[closedFrame.FrameIndex]);
+                continue;
+            }
+
+            if (!averageFrameTime.ContainsKey(openFrame.FrameIndex))
+            {
+                averageFrameTime[openFrame.FrameIndex] = 0;
+            }
+
+            averageFrameTime[openFrame.FrameIndex] += closedFrame.At - openFrame.At;
+        }
+
+        List<List<long>> samples = [];
+        List<double> weights = [];
+
+        foreach (var kvp in averageFrameTime)
+        {
+            samples.Add([kvp.Key]);
+            weights.Add(kvp.Value / counts[kvp.Key]);
+        }
+
+        return new("Average Method Time (ns)", ValueUnit.Nanoseconds, 0, samples.Count, samples, weights);
     }
 }

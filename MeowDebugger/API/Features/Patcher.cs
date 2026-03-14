@@ -136,7 +136,7 @@ internal class Patcher
         bool yesDisplay = Blacklisted.Any(prefix => name.Contains(prefix));
 
         if (!yesDisplay)
-            Logger.Info($"Patched {asm.GetName().Name}");
+            Logger.Info($"Found assembly: {asm.GetName().Name}");
 
         return yesDisplay;
     }

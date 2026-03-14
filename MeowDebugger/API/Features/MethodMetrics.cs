@@ -24,7 +24,7 @@ internal static class MethodMetrics
     public readonly static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> StackValue = new();
 
     [ThreadStatic]
-    public static List<FrameEvent>? Events;
+    public static List<FrameEvent>? FrameEvents;
 
     public static Dictionary<MethodBase, int> MethodIndexes { get; } = [];
     public static List<Frame> Frames { get; } = [];
@@ -54,7 +54,7 @@ internal static class MethodMetrics
 
         if (TicksToNanoSeconds(elapsedTime) >= ConfigDebugger.Instance!.NanosecondsThreshold)
         {
-            List<FrameEvent> events = Events ??= new();
+            List<FrameEvent> events = FrameEvents ??= new();
 
             int index = StoreIndex(method);
 
@@ -62,8 +62,8 @@ internal static class MethodMetrics
                 return;
 
             // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
-            events.Add(new FrameEvent(EventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
-            events.Add(new FrameEvent(EventType.CloseFrame, index, TicksToNanoSeconds(endTime)));
+            events.Add(new FrameEvent(FrameEventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
+            events.Add(new FrameEvent(FrameEventType.CloseFrame, index, TicksToNanoSeconds(endTime)));
         }
 
         if (StackValue.Count == 0)
