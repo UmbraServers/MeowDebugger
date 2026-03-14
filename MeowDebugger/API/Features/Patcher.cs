@@ -26,7 +26,6 @@ internal class Patcher
 
     public Patcher(Harmony harmony)
     {
-
         _harmony = harmony ?? throw new ArgumentNullException(nameof(harmony));
         _prefixMethod = typeof(Patch.Patch).GetMethod("Prefix", BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
@@ -46,7 +45,6 @@ internal class Patcher
                 assemblySet.Add(gameAsm);
 
 #if EXILED_RELEASE
-
             foreach (var plugin in Exiled.Loader.Loader.Plugins)
                 if (!plugin.Assembly.IsDynamic && plugin.Assembly != GeneralUtils.Assembly && !IsBlacklisted(plugin.Assembly))
                     assemblySet.Add(plugin.Assembly);
@@ -185,18 +183,15 @@ internal class Patcher
         return yesDisplay;
     }
 
-    private static bool IsNamespaceWhitelisted(string? @namespace)
+    private static bool IsNamespaceWhitelisted(string? name)
     {
-        if (@namespace == null) return false;
+        if (name == null) 
+            return false;
 
         for (int i = 0; i < Whitelist.Count; i++)
-        {
-            if (@namespace.Contains(Whitelist[i]))
-            {
+            if (name.Contains(Whitelist[i]))
                 return true;
-            }
-        }
-
+        
         return false;
     }
 
@@ -245,6 +240,9 @@ internal class Patcher
 
         try
         {
+            // TODO: Test if ` will work here
+            // I'm not sure if the ` cheat code is useful here and I'm too lazy to test
+
             if (method.IsGenericMethod || method.IsGenericMethodDefinition) 
                 return false;
 
@@ -264,7 +262,6 @@ internal class Patcher
         { 
             return false; 
         }
-
 
         if (method.DeclaringType != method.Module.GetTypes().FirstOrDefault(t => t == method.DeclaringType))
             return false;
