@@ -126,7 +126,7 @@ internal static class MethodMetrics
 
         string methodName = method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
 
-        Frame frame = new Frame(methodName, method.Module.FullyQualifiedName, id);
+        Frame frame = new Frame(methodName, method.Module.FullyQualifiedName);
 
         Frames.Add(frame);
 

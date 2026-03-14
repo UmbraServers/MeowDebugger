@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using static MeowDebugger.API.Features.MethodMetrics;
 
 namespace MeowDebugger.API.Features.Speedscope;
@@ -25,8 +24,6 @@ public class ExportToSpeedscope
     /// <returns>the json file</returns>
     public static bool ExportJsonFile(out string filePath)
     {
-        (MethodBase method, Stats.Snapshot snapshot)[] snapshots = SnapshotAllAndReset();
-
         filePath = string.Empty;
 
         if (Events == null || Events.Count == 0)
@@ -36,26 +33,34 @@ public class ExportToSpeedscope
 
         List<FrameEvent> events = [.. Events.OrderBy(e => e.At)];
 
+        Dictionary<int, long> counts = [];
         List<List<long>> samples = [];
         List<long> weights = [];
+        List<Frame> frames = Frames;
 
-        foreach ((MethodBase method, Stats.Snapshot snapshot) in snapshots)
+        foreach (FrameEvent frameEvent in events.Where(frameEvent => frameEvent.Type == EventType.CloseFrame))
         {
-            if (snapshot.Count == 0)
+            if (!counts.ContainsKey(frameEvent.FrameIndex))
+            {
+                counts[frameEvent.FrameIndex] = 1;
                 continue;
+            }
 
-            // I'm taking this data from Zero's implementation, idk but I'm pretty sure something is borked there and I'm too lazy to check it :trollface:
-            int frameIndex = GetMethodIndex(method);
+            counts[frameEvent.FrameIndex] += 1;
+        }
 
-            samples.Add(new List<long> { frameIndex });
-            weights.Add(snapshot.Count);
+        // key is frame index and value is count
+        foreach (var kvp in counts)
+        {
+            samples.Add([kvp.Key]);
+            weights.Add(kvp.Value);
+            frames[kvp.Key] = new Frame($"{Frames[kvp.Key].Name} (x{kvp.Value})", Frames[kvp.Key].File);
         }
 
         EventedProfile timeProfile = new("Time (ns)", ValueUnit.Nanoseconds, events.First().At, events.Last().At, events);
-        SampledProfile countProfile = new("Call Count (MIGHT BE INNACURATE!!!)", ValueUnit.None, 0, samples.Count, samples, weights);
+        SampledProfile countProfile = new("Call Count", ValueUnit.None, 0, samples.Count, samples, weights);
 
-        // TODO: Reduce file size, I need to update all the indexes for each event and that's annoying, I might do a pr in the original speedscope repo so I can get it from an key called "index", but idk
-        SpeedscopeFile file = new([timeProfile, countProfile], new SharedFrames(Frames), "MeowDebugger@1.0.0");
+        SpeedscopeFile file = new([timeProfile, countProfile], new SharedFrames(frames), "MeowDebugger@1.0.0");
 
         Events.Clear();
 

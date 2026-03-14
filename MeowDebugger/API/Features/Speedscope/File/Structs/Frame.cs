@@ -16,19 +16,15 @@ namespace MeowDebugger.API.Features.Speedscope.File.Structs
         [JsonProperty("file")]
         public string File;
 
-        [JsonIgnore]
-        public int Index;
-
         /// <summary>
         /// Creates an instance of <see cref="Frame"/>
         /// </summary>
         /// <param name="name"></param>
         /// <param name="file"></param>
-        public Frame(string name, string file, int index)
+        public Frame(string name, string file)
         {
             this.Name = name;
             this.File = file;
-            this.Index = index;
         }
     }
 }
