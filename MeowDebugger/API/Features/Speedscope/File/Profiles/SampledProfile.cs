@@ -1,12 +1,12 @@
 ﻿using MeowDebugger.API.Features.Speedscope.File.Structs;
-using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
 namespace MeowDebugger.API.Features.Speedscope.File.Profiles
 {
     public class SampledProfile : BaseProfile
     {
+        [JsonConstructor]
         public SampledProfile(string Name, string unit, long startValue, long endValue, List<List<long>> samples, List<double> weights) : base(Name, unit, startValue, endValue)
         {
             this.Samples = samples;
@@ -16,10 +16,10 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
         /// <inheritdoc/>
         public override string Type => ProfileType.Sampled;
 
-        [JsonProperty("samples")]
+        [JsonPropertyName("samples")]
         public List<List<long>> Samples { get; set; } = new();
 
-        [JsonProperty("weights")]
+        [JsonPropertyName("weights")]
         public List<double> Weights { get; set; } = new();
     }
 }

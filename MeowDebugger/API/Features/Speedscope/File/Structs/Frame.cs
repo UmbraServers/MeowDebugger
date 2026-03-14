@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 
 namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
@@ -8,23 +8,24 @@ namespace MeowDebugger.API.Features.Speedscope.File.Structs
     public struct Frame
     {
         /// <summary>
-        /// The frame's name.
-        /// </summary>
-        [JsonProperty("name")]
-        public string Name;
-
-        [JsonProperty("file")]
-        public string File;
-
-        /// <summary>
         /// Creates an instance of <see cref="Frame"/>
         /// </summary>
         /// <param name="name"></param>
         /// <param name="file"></param>
+        [JsonConstructor]
         public Frame(string name, string file)
         {
             this.Name = name;
             this.File = file;
         }
+
+        /// <summary>
+        /// The frame's name.
+        /// </summary>
+        [JsonPropertyName("name")]
+        public string Name { get; }
+
+        [JsonPropertyName("file")]
+        public string File { get; }
     }
 }
