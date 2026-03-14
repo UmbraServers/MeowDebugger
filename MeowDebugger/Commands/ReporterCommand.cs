@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using CommandSystem;
+﻿using CommandSystem;
 using LabApi.Features.Console;
 using LabApi.Features.Wrappers;
 using LabApi.Loader.Features.Paths;
@@ -10,6 +6,11 @@ using MEC;
 using MeowDebugger.API;
 using MeowDebugger.API.Features;
 using MeowDebugger.API.Features.Speedscope;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace MeowDebugger.Commands;
 
