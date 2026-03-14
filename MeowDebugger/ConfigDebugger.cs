@@ -69,4 +69,7 @@ public class ConfigDebugger
 
     [Description("The output of the profiler")]
     public string SpeedscopeOutputPath { get; set; } = string.Empty;
+
+    [Description("If it the output file will contain the filtered namespace name")]
+    public bool ShouldIncludeNamespaceInOutput { get; set; } = true;
 }

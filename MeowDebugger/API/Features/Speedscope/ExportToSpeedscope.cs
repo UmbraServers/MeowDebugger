@@ -61,7 +61,7 @@ public class ExportToSpeedscope
 #endif
 
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
-            string namespaces = string.Join("-", ConfigDebugger.Instance!.WhitelistNamespaces);
+            string namespaces = ConfigDebugger.Instance!.ShouldIncludeNamespaceInOutput ? string.Join("-", ConfigDebugger.Instance!.WhitelistNamespaces) : "speedscope";
             string filename = $"{namespaces}_{timestamp}.json";
 
             Directory.CreateDirectory(path);
