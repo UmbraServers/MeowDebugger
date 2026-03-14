@@ -1,32 +1,43 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 
 namespace MeowDebugger.API.Features.Speedscope.File.Profiles
 {
+    [JsonDerivedType(typeof(EventedProfile))]
+    [JsonDerivedType(typeof(SampledProfile))]
     public abstract class BaseProfile
     {
+        internal BaseProfile(string Name, string unit, double startValue, double endValue)
+        {
+            this.Name = Name;
+            this.Unit = unit;
+            this.StartValue = startValue;
+            this.EndValue = endValue;
+
+        }
+
         /// <summary>
         /// Name of the profile. Typically, a filename for the source of the profile.
         /// </summary>
-        [JsonProperty("type")]
+        [JsonPropertyName("type")]
         public abstract string Type { get; }
 
         /// <summary>
         /// Name of the profile. Typically, a filename for the source of the profile.
         /// </summary>
-        [JsonProperty("name")]
+        [JsonPropertyName("name")]
         public string Name { get; }
 
         /// <summary>
         /// Unit which all value are specified using in the profile.
         /// </summary>
-        [JsonProperty("unit")]
+        [JsonPropertyName("unit")]
         public string Unit { get; }
 
         /// <summary>
         /// The starting value of the profile. This will typically be a timestamp.
         /// All event values will be displayed relative to this startValue.
         /// </summary>
-        [JsonProperty("startValue")]
+        [JsonPropertyName("startValue")]
         public double StartValue { get; }
 
         /// <summary>
@@ -36,16 +47,7 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
         /// events, which may happen if nothing was happening at the end of the
         /// profile.
         /// </summary>
-        [JsonProperty("endValue")]
+        [JsonPropertyName("endValue")]
         public double EndValue { get; }
-
-        internal BaseProfile(string Name, string unit, double startValue, double endValue)
-        {
-            this.Name = Name;
-            this.Unit = unit;
-            this.StartValue = startValue;
-            this.EndValue = endValue;
-
-        }
     }
 }
