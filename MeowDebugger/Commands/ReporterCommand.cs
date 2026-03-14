@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CommandSystem;
+using LabApi.Features.Console;
 using LabApi.Features.Wrappers;
 using LabApi.Loader.Features.Paths;
+using MEC;
 using MeowDebugger.API;
 using MeowDebugger.API.Features;
 using MeowDebugger.API.Features.Speedscope;
@@ -36,10 +38,10 @@ public class ReporterCommand : ICommand
             return true;
         }
 
-        string sub = arguments.At(0).ToLowerInvariant();
-        var rest = arguments.Skip(1).ToArray();
+        string command = arguments.At(0).ToLowerInvariant();
+        string[] args = arguments.Skip(1).ToArray();
 
-        switch (sub)
+        switch (command)
         {
             case "enable":
                 GeneralUtils.EnableTool();
@@ -52,7 +54,7 @@ public class ReporterCommand : ICommand
                 return true;
 
             case "top":
-                if (rest.Length > 0 && int.TryParse(rest[0], out int topN))
+                if (args.Length > 0 && int.TryParse(args[0], out int topN))
                 {
                     response = WithTps(MethodMetrics.ReportAndReset(topN));
                     return true;
@@ -61,24 +63,43 @@ public class ReporterCommand : ICommand
                 response = "Usage: reporter top <count>";
                 return false;
 
-            case "flame":
-                string flameName = rest.Length > 0 ? rest[0] : "flamegraph";
+            case "speed":
+                // Does not work yet 
+                //if (args.Length > 0 && int.TryParse(args[0], out int timer))
+                //{
+                //    MethodMetrics.Events?.Clear();
+                //    MethodMetrics.MethodIndexes?.Clear();
+                //    MethodMetrics.Frames?.Clear();
+
+                //    Timing.CallDelayed(timer, () =>
+                //    {
+                //        if (!ExportToSpeedscope.ExportJsonFile(out string path))
+                //        {
+                //            Logger.Error("Unable to export speedscope graph.");
+                //            return;
+                //        }
+                //        Logger.Info($"Speedscope graph exported to {path}");
+                //    });
+                //    response = $"Speedscope graph will be exported in {timer} seconds.";
+                //    return true;
+                //}
+
                 if (!ExportToSpeedscope.ExportJsonFile(out string path))
                 {
                     response = "Unable to export speedscope graph.";
                     return false;
                 }
-                response = $"Flame graph exported to {path}";
+                response = $"Speedscope graph exported to {path}";
                 return true;
 
             case "filter":
-                if (rest.Length == 0)
+                if (args.Length == 0)
                 {
                     response = "Usage: reporter filter <method1> [method2] ...";
                     return false;
                 }
 
-                response = WithTps(MethodMetrics.ReportAndReset(rest) ?? "No matching methods.");
+                response = WithTps(MethodMetrics.ReportAndReset(args) ?? "No matching methods.");
                 return true;
 
             case "help":
@@ -86,7 +107,7 @@ public class ReporterCommand : ICommand
                 return true;
 
             default:
-                response = $"Unknown subcommand '{sub}'. Use 'reporter help' for usage.";
+                response = $"Unknown subcommand '{command}'. Use 'reporter help' for usage.";
                 return false;
         }
     }
@@ -96,7 +117,7 @@ public class ReporterCommand : ICommand
     "reporter enable       - Enable method metrics\n" +
     "reporter disable      - Disable method metrics\n" +
     "reporter top <N>      - Report top N slowest methods\n" +
-    "reporter flame [name] - Export flame graph (optional filename)\n" +
+    "reporter speed [time] - Exports speedscope graph (optional: profiles data in a certain amount of time)\n" +
     "reporter filter <...> - Report specific methods by name\n" +
     "reporter help         - Show this help";
 

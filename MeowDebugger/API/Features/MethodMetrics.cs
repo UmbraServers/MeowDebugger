@@ -52,6 +52,20 @@ internal static class MethodMetrics
 
         long elapsedTime = endTime - startTime;
 
+        if (TicksToNanoSeconds(elapsedTime) >= ConfigDebugger.Instance!.NanosecondsThreshold)
+        {
+            List<FrameEvent> events = Events ??= new();
+
+            int index = StoreIndex(method);
+
+            if (index == -1)
+                return;
+
+            // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
+            events.Add(new FrameEvent(EventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
+            events.Add(new FrameEvent(EventType.CloseFrame, index, TicksToNanoSeconds(endTime)));
+        }
+
         if (StackValue.Count == 0)
         {
             _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
@@ -100,20 +114,6 @@ internal static class MethodMetrics
             parent.ChildTicks += elapsedTime;
             StackValue.Push(parent);
             return;
-        }
-
-        if (TicksToNanoSeconds(elapsedTime) >= ConfigDebugger.Instance!.NanosecondsThreshold)
-        {
-            List<FrameEvent> events = Events ??= new();
-
-            int index = StoreIndex(method);
-
-            if (index == -1)
-                return;
-
-            // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
-            events.Add(new FrameEvent(EventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
-            events.Add(new FrameEvent(EventType.CloseFrame, index, TicksToNanoSeconds(endTime)));
         }
     }
 

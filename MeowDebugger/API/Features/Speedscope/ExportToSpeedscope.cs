@@ -36,7 +36,9 @@ public class ExportToSpeedscope
         Dictionary<int, long> counts = [];
         List<List<long>> samples = [];
         List<long> weights = [];
-        List<Frame> frames = Frames;
+        List<Frame> frames = Frames.ToList();
+
+        Logger.Info(frames.Count);
 
         foreach (FrameEvent frameEvent in events.Where(frameEvent => frameEvent.Type == EventType.CloseFrame))
         {
@@ -63,6 +65,8 @@ public class ExportToSpeedscope
         SpeedscopeFile file = new([timeProfile, countProfile], new SharedFrames(frames), "MeowDebugger@1.0.0");
 
         Events.Clear();
+        MethodIndexes.Clear();
+        Frames.Clear();
 
         try
         {
@@ -75,7 +79,6 @@ public class ExportToSpeedscope
 #endif
 
             Directory.CreateDirectory(path);
-
 
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
             string namespaces = string.Join("-", ConfigDebugger.Instance!.WhitelistNamespaces);
