@@ -4,15 +4,14 @@
         <TargetFramework>net48</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Configurations>Debug;Release;Exiled Release</Configurations>
-        <Platforms>AnyCPU</Platforms>
+        <Platforms>AnyCPU;x64</Platforms>
     </PropertyGroup>
 
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>MeowDebugger</Authors>
         <Title>MeowDebugger</Title>
         <Description>Debugger For AftermathServers</Description>
@@ -25,6 +24,8 @@
 
     <ItemGroup>
         <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
+        <PackageReference Include="Newtonsoft.Json.Schema" Version="4.0.2-beta2" />
         <PackageReference Include="Northwood.LabAPI" Version="1.0.2" IncludeAssets="All" PrivateAssets="All" />
         <PackageReference Include="Lib.Harmony" Version="2.2.2" />
         <PackageReference Include="ExMod.Exiled" Version="9.13.1" Condition="'$(Configuration)' == 'Exiled Release'" />
@@ -41,6 +42,7 @@
         <Reference Include="UnityEngine.CoreModule" HintPath="$(SL_REFERENCES)\UnityEngine.CoreModule.dll" />
         <Reference Include="UnityEngine.PhysicsModule" HintPath="$(SL_REFERENCES)\UnityEngine.PhysicsModule.dll" />
         <Reference Include="Unity.TextMeshPro" HintPath="$(SL_REFERENCES)\Unity.TextMeshPro.dll" />
+		<Reference Include="System.Text.Json" HintPath="$(SL_REFERENCES)\System.Text.Json.dll" />
     </ItemGroup>
 
 </Project>

@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Exiled Release" />
+    <BuildType Name="Release" />
+  </Configurations>
+  <Project Path="MeowDebugger/MeowDebugger.csproj" />
+</Solution>

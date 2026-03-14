@@ -1,79 +1,140 @@
-﻿using System;
-using System.IO;
+﻿using LabApi.Features.Wrappers;
+using MeowDebugger.API.Features.Speedscope.File.Structs;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
-using LabApi.Features.Wrappers;
+using System.Timers;
+using TMPro;
+using UnityEngine;
 
 namespace MeowDebugger.API.Features;
 
 internal static class MethodMetrics
 {
-    private static readonly ConcurrentDictionary<MethodBase, Stats> _map = new();
-    private static readonly ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
-    
+    private static ConcurrentDictionary<MethodBase, Stats> _map = new();
+    private static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
+
     [ThreadStatic]
-    private static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)>? _stackValue;
+    public readonly static Stack<(MethodBase Method, long ChildTicks, double BeforeTps)> StackValue = new();
 
-    private static readonly ConcurrentDictionary<string, long> _flame = new();
+    [ThreadStatic]
+    public static List<FrameEvent>? FrameEvents;
 
-    public static void Enter(MethodBase? method)
+    public static Dictionary<MethodBase, int> MethodIndexes { get; } = [];
+    public static List<Frame> Frames { get; } = [];
+
+
+    private static readonly double TicksToNano = Math.Pow(10, 9) / Stopwatch.Frequency;
+    private static double TicksToNanoSeconds(long ticks) => ticks * TicksToNano;
+
+    public static void Enter(MethodBase? method, long startTime)
     {
-        if (method == null) return;
-
-        var stack = _stackValue ??= new Stack<(MethodBase, long, double)>();
-        stack.Push((method, 0, GetClampedTps()));
-    }
-
-    public static void Exit(MethodBase? method, long elapsedTicks)
-    {
-        if (method == null) return;
-        var stack = _stackValue ??= new Stack<(MethodBase, long, double)>();
-        if (stack == null || stack.Count == 0) return;
-
-        var popped = stack.Pop();
-        if (!ReferenceEquals(popped.Method, method)) return;
-
-
-        long exclusiveTicks = elapsedTicks - popped.ChildTicks;
-        if (exclusiveTicks < 0) exclusiveTicks = 0;
-
-        var frames = stack
-            .Reverse()
-            .Select(s => FormatMethodName(s.Method))
-            .ToList();
-
-        frames.Add(FormatMethodName(method));
-        string key = string.Join(";", frames);
-
-        if (_flame.Count < 100_000) 
+        if (method == null)
         {
-            _flame.AddOrUpdate(key, exclusiveTicks, (_, old) => old + exclusiveTicks);
+            return;
         }
 
-        double beforeTps = popped.BeforeTps;
+        StackValue.Push((method, 0, GetClampedTps()));
+    }
+
+    public static void Exit(MethodBase? method, long endTime, long startTime)
+    {
+        if (method == null)
+        {
+            return;
+        }
+
+        long elapsedTime = endTime - startTime;
+
+        if (TicksToNanoSeconds(elapsedTime) >= ConfigDebugger.Instance!.NanosecondsThreshold)
+        {
+            List<FrameEvent> events = FrameEvents ??= new();
+
+            int index = StoreIndex(method);
+
+            if (index == -1)
+                return;
+
+            // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
+            events.Add(new FrameEvent(FrameEventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
+            events.Add(new FrameEvent(FrameEventType.CloseFrame, index, TicksToNanoSeconds(endTime)));
+        }
+
+        if (StackValue.Count == 0)
+        {
+            _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
+            {
+                double tps = GetClampedTps();
+                stat.Add(elapsedTime, tps, tps);
+                return stat;
+            });
+            return;
+        }
+
+        (MethodBase Method, long ChildTicks, double BeforeTps) = StackValue.Peek();
+
+        if (!ReferenceEquals(Method, method))
+        {
+            _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
+            {
+                double tps = GetClampedTps();
+                stat.Add(elapsedTime, tps, tps);
+                return stat;
+            });
+            return;
+        }
+
+        StackValue.Pop();
+
+        long exclusiveTicks = elapsedTime - ChildTicks;
+
+        if (exclusiveTicks < 0)
+        {
+            exclusiveTicks = 0;
+        }
+
+        double beforeTps = BeforeTps;
         double afterTps = GetClampedTps();
 
-        var s = _map.GetOrAdd(method, _ => new Stats());
-
-        s.Add(exclusiveTicks, beforeTps, afterTps);
-        if (stack.Count > 0)
+        _map.AddOrUpdate(method, _ => new Stats(), (m, stat) =>
         {
-            var parent = stack.Pop();
-            stack.Push((parent.Method, parent.ChildTicks + elapsedTicks, parent.BeforeTps));
+            stat.Add(exclusiveTicks, beforeTps, afterTps);
+            return stat;
+        });
+
+        if (StackValue.Count > 0)
+        {
+            var parent = StackValue.Pop();
+            parent.ChildTicks += elapsedTime;
+            StackValue.Push(parent);
+            return;
         }
     }
 
-    private static string FormatMethodName(MethodBase m)
+    public static int StoreIndex(MethodBase method)
     {
-        return m.DeclaringType != null
-            ? $"{m.DeclaringType.FullName}.{m.Name}"
-            : m.Name;
+        if (MethodIndexes.TryGetValue(method, out int id))
+            return id;
+
+        id = Frames.Count;
+
+        string methodName = method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
+
+        Frame frame = new Frame(methodName, method.Module.FullyQualifiedName);
+
+        Frames.Add(frame);
+
+        MethodIndexes[method] = id;
+        return id;
     }
+
+    public static int GetMethodIndex(MethodBase method) => MethodIndexes.TryGetValue(method, out int id) ? id : -1;
 
     private static double GetClampedTps()
     {
@@ -85,7 +146,7 @@ internal static class MethodMetrics
 
     public static string ReportAndReset(int topN = 10)
     {
-        var items = _map.Select(kv => (Method: kv.Key, Snap: kv.Value.SnapshotAndReset()))
+        (MethodBase Method, Stats.Snapshot Snap)[] items = _map.Select(kv => (Method: kv.Key, Snap: kv.Value.SnapshotAndReset()))
                         .Where(x => x.Snap.Count > 0)
                         .OrderByDescending(x => x.Snap.TotalTicks)
                         .Take(topN)
@@ -94,87 +155,19 @@ internal static class MethodMetrics
         return BuildReport(items, includeChildren: false);
     }
 
-    public static void ExportFlameGraph(string path)
-    {
-        var snapshot = _flame.ToArray();
-
-        double ticksPerUs = Stopwatch.Frequency / 1_000_000.0;
-
-        using var sw = new StreamWriter(path, append: false, Encoding.UTF8)
-        {
-            NewLine = "\n" 
-        };
-
-        foreach (var kv in snapshot)
-        {
-            if (kv.Value <= 0)
-            {
-                continue;
-            }
-
-            long us = (long)(kv.Value / ticksPerUs);
-
-            if (us <= 0)
-            {
-                us = 1;
-            }  
-
-            sw.WriteLine($"{kv.Key} {us}");
-        }
-
-        _flame.Clear();
-    }
-
     public static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
     {
-        var results = new List<(MethodBase, Stats.Snapshot)>();
-        foreach (var key in _map.Keys.ToArray())
+        List<(MethodBase, Stats.Snapshot)> results = new List<(MethodBase, Stats.Snapshot)>();
+        foreach (MethodBase? key in MethodMetrics._map.Keys.ToArray())
         {
-            if (_map.TryGetValue(key, out var stats))
-            {
-                var snap = stats.SnapshotAndReset();
-                if (snap.Count > 0)
-                    results.Add((key, snap));
-            }
+            if (!MethodMetrics._map.TryGetValue(key, out Stats? stats))
+                continue;
+
+            Stats.Snapshot snap = stats.SnapshotAndReset();
+            if (snap.Count > 0)
+                results.Add((key, snap));
         }
         return results.ToArray();
-    }
-
-    public static void ExportCsv(string path)
-    {
-        var items = SnapshotAllAndReset();
-
-        double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
-
-        var sb = new StringBuilder();
-        sb.AppendLine("Method,Count,TotalMs,AvgMs,MinMs,MaxMs,TpsBefore,TpsAfter,TpsDrop");
-
-        foreach (var it in items)
-        {
-            var s = it.Snap;
-
-            string name = it.Method.DeclaringType != null
-                ? $"{it.Method.DeclaringType.FullName}.{it.Method.Name}"
-                : it.Method.Name;
-
-            double totalMs = ToMs(s.TotalTicks);
-            double avgMs = ToMs(s.AvgTicks);
-            double minMs = ToMs(s.MinTicks);
-            double maxMs = ToMs(s.MaxTicks);
-            double tpsDrop = s.BeforeTpsAvg - s.AfterTpsAvg;
-
-            sb.AppendLine($"{name}," +
-                          $"{s.Count}," +
-                          $"{totalMs:0.###}," +
-                          $"{avgMs:0.###}," +
-                          $"{minMs:0.###}," +
-                          $"{maxMs:0.###}," +
-                          $"{s.BeforeTpsAvg:0.###}," +
-                          $"{s.AfterTpsAvg:0.###}," +
-                          $"{tpsDrop:0.###}");
-        }
-
-        File.WriteAllText(path, sb.ToString());
     }
 
     public static string ReportAndReset(IEnumerable<string> methodNames)
@@ -195,57 +188,6 @@ internal static class MethodMetrics
             .ToArray();
 
         return BuildReport(items, includeChildren: true);
-    }
-
-    public static void ExportHeatmapHtml(string path)
-    {
-
-        var items = SnapshotAllAndReset();
-
-        if (items.Length == 0)
-        {
-            return;
-        }
-
-        double ToMs(long t) => t * 1000.0 / Stopwatch.Frequency;
-
-        double maxTotal = items.Max(i => ToMs(i.Snap.TotalTicks));
-
-        var sb = new StringBuilder();
-        sb.AppendLine("<html><body><table border='1' style='border-collapse:collapse;'>");
-        sb.AppendLine("<tr><th>Method</th><th>Total(ms)</th><th>Avg(ms)</th><th>TPS Drop</th></tr>");
-
-        foreach (var tuplethingy in items)
-        {
-            var s = tuplethingy.Snap;
-
-            double totalMs = ToMs(s.TotalTicks);
-            double avgMs = ToMs(s.AvgTicks);
-            double tpsDrop = s.BeforeTpsAvg - s.AfterTpsAvg;
-
-            double ratio = maxTotal > 0 ? totalMs / maxTotal : 0;
-
-            int r = (int)(ratio * 255);
-            int g = (int)((1 - ratio) * 255);
-
-            string color = $"#{r:X2}{g:X2}00";
-
-            string name = tuplethingy.Method.DeclaringType != null
-                ? $"{tuplethingy.Method.DeclaringType.FullName}.{tuplethingy.Method.Name}"
-                : tuplethingy.Method.Name;
-
-            sb.AppendLine(
-                $"<tr style='background-color:{color}'>" +
-                $"<td>{name}</td>" +
-                $"<td>{totalMs:0.###}</td>" +
-                $"<td>{avgMs:0.###}</td>" +
-                $"<td>{tpsDrop:0.###}</td>" +
-                $"</tr>");
-        }
-
-        sb.AppendLine("</table></body></html>");
-
-        File.WriteAllText(path, sb.ToString());
     }
 
     private static string BuildReport((MethodBase Method, Stats.Snapshot Snap)[] items, bool includeChildren)
@@ -375,18 +317,14 @@ internal static class MethodMetrics
             return new Snapshot(total, count, min, max, avg, beforeAvg, afterAvg);
         }
 
-        public readonly struct Snapshot
-        {
-            public Snapshot(long totalTicks, int count, long minTicks, long maxTicks, long avgTicks, double beforeTpsAvg, double afterTpsAvg)
-            { TotalTicks = totalTicks; Count = count; MinTicks = minTicks; MaxTicks = maxTicks; AvgTicks = avgTicks; BeforeTpsAvg = beforeTpsAvg; AfterTpsAvg = afterTpsAvg; }
-
-            public long TotalTicks { get; }
-            public int Count { get; }
-            public long MinTicks { get; }
-            public long MaxTicks { get; }
-            public long AvgTicks { get; }
-            public double BeforeTpsAvg { get; }
-            public double AfterTpsAvg { get; }
-        }
+        public record Snapshot(
+            long TotalTicks,
+            int Count,
+            long MinTicks,
+            long MaxTicks,
+            long AvgTicks,
+            double BeforeTpsAvg,
+            double AfterTpsAvg
+        );
     }
 }

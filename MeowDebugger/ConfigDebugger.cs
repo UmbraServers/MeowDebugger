@@ -8,18 +8,28 @@ using Exiled.API.Interfaces;
 namespace MeowDebugger;
 
 /// <summary>
-/// Debugger Configs.
+/// Represents the class for the Debugger Configs.
 /// </summary>
 public class ConfigDebugger
 #if EXILED_RELEASE
         : IConfig
 #endif
 {
+    /// <summary>
+    /// Represents the config instance.
+    /// </summary>
     public static ConfigDebugger? Instance { get; internal set; }
     
 #if EXILED_RELEASE
+        /// <inheritdoc/>
         public bool IsEnabled { get; set; } = true;
+        
+        /// <inheritdoc/>
         public bool Debug { get; set; }
+        
+        /// <summary>
+        /// Gets or sets the value if it should patch LabAPI plugins.
+        /// </summary>
         public bool ShouldPatchLabApiPlugins { get; set; } = true;
 #endif
 
@@ -42,9 +52,18 @@ public class ConfigDebugger
         "System.ValueTuple"
     ];
 
+    /// <summary>
+    /// Gets or sets the list of Whitelisted Namespaces.
+    /// </summary>
     public List<string> WhitelistNamespaces { get; set; } =
     [
         "InventorySystem",
         "CommandSystem"
     ];
+
+    [Description("Minimal nanoseconds for the speedscope file / 1ms = 1000000ns / (I don't recommend setting this to 0) ")]
+    public double NanosecondsThreshold { get; set; } = 200000;
+
+    [Description("The output of the profiler")]
+    public string SpeedscopeOutputPath { get; set; } = string.Empty;
 }

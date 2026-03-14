@@ -12,7 +12,18 @@ The features the plugin currently has:
  - Intelligent Danger System
 
  ## How to see flamegraph
- use the command "reporter flame" and then go to this website [speedscope](https://www.speedscope.app/) to allow you to see them
+> [!NOTE]
+> We recommend using this if you need accurate data.
+
+ Use the command "reporter flame" and then go to this website [speedscope](https://www.speedscope.app/) to allow you to see them
+
+ ## Config
+| Setting Key | Value Type | Default Value | Description |
+|---|---|---|---|
+| blacklist_assemblies | list | ``CedModV3`` ``0Harmony`` ``NVorbis`` ``Mono.Posix`` ``SemanticVersioning`` ``System.Buffers`` ``System.ComponentModel.DataAnnotations`` ``System.Memory`` ``System.Numerics.Vectors`` ``System.Runtime.CompilerServices.Unsafe`` ``System.ValueTuple`` | Blacklists assemblies to not look for namespaces. |
+| whitelist_namespaces | list | ``InventorySystem`` ``CommandSystem`` | Namespaces that will get patched. |
+| nanoseconds_threshold | double | 200000 | Minimal nanoseconds difference between frames for the file.   ``1ms = 1000000ns``  |
+| speedscope_output_path | string | "" | Exports the profile to a custom path.  |
 
  # How to Install?
  Go to [Releases](https://github.com/UmbraServers/MeowDebugger/releases),

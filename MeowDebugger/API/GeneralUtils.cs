@@ -15,13 +15,13 @@ internal static class GeneralUtils
     /// <summary>
     /// Gets the harmony to use for the API.
     /// </summary>
-    internal static Harmony? Harmony { get; private set; }
+    private static Harmony? Harmony { get; set; }
     
     private static Patcher? _patcher;
     
     internal static void EnableTool()
     {
-        Harmony ??= new Harmony("MeowDebugger_" + DateTime.Now);
+        Harmony ??= new Harmony($"MeowDebugger_{DateTime.Now}");
         _patcher ??= new Patcher(Harmony);
         _patcher.PatchMethods();
     }
