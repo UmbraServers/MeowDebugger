@@ -63,7 +63,7 @@ public class ReporterCommand : ICommand
                 response = "Usage: reporter top <count>";
                 return false;
 
-            case "speed":
+            case "flame":
                 // Does not work yet 
                 //if (args.Length > 0 && int.TryParse(args[0], out int timer))
                 //{
