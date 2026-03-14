@@ -63,7 +63,7 @@ public class ReporterCommand : ICommand
 
             case "flame":
                 string flameName = rest.Length > 0 ? rest[0] : "flamegraph";
-                if (!ExportToFlamescope.ExportJsonFile(out string path))
+                if (!ExportToSpeedscope.ExportJsonFile(out string path))
                 {
                     response = "Unable to export speedscope graph.";
                     return false;

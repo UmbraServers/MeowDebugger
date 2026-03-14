@@ -65,5 +65,5 @@ public class ConfigDebugger
     public double NanosecondsThreshold { get; set; } = 200000;
 
     [Description("The output of the profiler")]
-    public string SpeedscopeOutputPath { get; set; } = "";
+    public string SpeedscopeOutputPath { get; set; } = string.Empty;
 }
