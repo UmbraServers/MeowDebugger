@@ -94,15 +94,27 @@ internal class Patcher
                 Logger.Warn($"ReflectionTypeLoadException while reading types from {asm.FullName}; using {asmTypes.Length} loadable types.");
             }
 
-            IEnumerable<Type> filtered = asmTypes
-                .Where(t => t is { IsInterface: false })
-                // allow HarmonyPatch types so everything is instrumented
-                // skip compiler generated types (e.g. coroutine state machines)
-                .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
-                // skip types with static constructors to avoid premature dependency initialization
-                .Where(t => t.TypeInitializer == null);
 
-            allTypes.AddRange(filtered);
+            foreach (Type type in asmTypes)
+            {
+                if (type == null)
+                    continue;
+
+                if (type.Namespace == null || !IsNamespaceWhitelisted(type.Namespace))
+                    continue;
+
+                if (type.IsInterface)
+                    continue;
+
+                // https://stackoverflow.com/questions/14343498/how-does-the-c-sharp-compiler-work-with-generics
+                if (type.FullName != null && (type.FullName.Contains('`') || type.FullName.Contains("<"))) 
+                    continue;
+
+                if (type.TypeInitializer != null)
+                    continue;
+
+                allTypes.Add(type);
+            }
         }
 
         _types = allTypes.ToArray();
@@ -117,15 +129,47 @@ internal class Patcher
         }
 
         int tried = 0;
+        List<(MethodInfo method, Type type)> methodsToPatch = [];
 
         foreach (Type type in _types)
         {
             foreach (MethodInfo method in EnumeratePatchableMethods(type))
             {
                 tried++;
-                PatchMethod(method, type);
+                methodsToPatch.Add((method, type));
             }
         }
+
+        foreach ((MethodInfo method, Type type) in methodsToPatch)
+        {
+            try
+            {
+                // Not sure if we need seemes useless + and I think you need to fuck up something to patch everything again 2 times
+                //var info = Harmony.GetPatchInfo(method);
+                //if (info?.Owners?.Contains(_harmony.Id) == true)
+                //{
+                //    Logger.Debug($"Already patched: {type.FullName}::{method.Name}()");
+                //    return;
+                //}
+
+                _harmony.Patch(
+                    original: method,
+                    prefix: new HarmonyMethod(_prefixMethod),
+                    finalizer: new HarmonyMethod(_finalizerMethod)
+                );
+
+                _patchedMethods++;
+            }
+            catch (NotSupportedException)
+            {
+                Logger.Warn($"Won't patch (not supported): {type.FullName}::{method.Name}()");
+            }
+            catch (Exception e)
+            {
+                Logger.Error($"Failed to patch {type.FullName}::{method.Name}(): {e}");
+            }
+        }
+
 
         Logger.Info($"Tried patching {tried} methods across {_types.Length} types; successfully patched {_patchedMethods}.");
     }
@@ -156,40 +200,8 @@ internal class Patcher
         return false;
     }
 
-    private void PatchMethod(MethodInfo method, Type type)
+    private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type type)
     {
-        try
-        {
-            var info = Harmony.GetPatchInfo(method);
-            if (info?.Owners?.Contains(_harmony.Id) == true)
-            {
-                Logger.Debug($"Already patched: {type.FullName}::{method.Name}()");
-                return;
-            }
-
-            _harmony.Patch(
-                original: method,
-                prefix: new HarmonyMethod(_prefixMethod),
-                finalizer: new HarmonyMethod(_finalizerMethod)
-            );
-
-            _patchedMethods++;
-        }
-        catch (NotSupportedException)
-        {
-            Logger.Warn($"Won't patch (not supported): {type.FullName}::{method.Name}()");
-        }
-        catch (Exception e)
-        {
-            Logger.Error($"Failed to patch {type.FullName}::{method.Name}(): {e}");
-        }
-    }
-
-    private static IEnumerable<MethodInfo> EnumeratePatchableMethods(Type t)
-    {
-        if (!IsNamespaceWhitelisted(t.Namespace))
-            yield break;
-
         const BindingFlags flags =
         BindingFlags.Public |
         BindingFlags.NonPublic |
@@ -197,35 +209,75 @@ internal class Patcher
         BindingFlags.Static |
         BindingFlags.DeclaredOnly;
 
-        foreach (MethodInfo m in t.GetMethods(flags))
-            if (CanPatchRegular(m))
-                yield return m;
+
+        MethodInfo[] methods;
+        try
+        {
+            methods = type.GetMethods(flags);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (MethodInfo method in methods)
+            if (CanPatchRegular(method))
+                yield return method;
     }
 
-    private static bool CanPatchRegular(MethodInfo? m)
+    private static bool CanPatchRegular(MethodInfo? method)
     {
-        if (m == null) return false;
-        if (m.IsAbstract) return false;
-        if (m.Name.Contains("<")) return false;
-        if (m.Name == "MoveNext") return false;
-        if (m.Name == "System.Collections.IEnumerator.Reset") return false;
+        if (method == null) 
+            return false;
+
+        if (method.IsAbstract) 
+            return false;
+
+        // https://stackoverflow.com/questions/14343498/how-does-the-c-sharp-compiler-work-with-generics
+        if (method.Name.Contains("<"))
+            return false;
+
+        if (method.Name == "MoveNext") 
+            return false;
+
+        if (method.Name == "System.Collections.IEnumerator.Reset") 
+            return false;
 
         try
         {
-            if (m.ContainsGenericParameters) return false;
-            if (m.IsGenericMethod || m.IsGenericMethodDefinition) return false;
+            if (method.IsGenericMethod || method.IsGenericMethodDefinition) 
+                return false;
+
+            if (method.ContainsGenericParameters) 
+                return false;
+
+            if (method.ReturnType.IsGenericParameter) 
+                return false;
+
+            if (method.ReturnType.IsGenericType && method.ReturnType.ContainsGenericParameters) 
+                return false;
+
+            if (typeof(IEnumerator).IsAssignableFrom(method.ReturnType))
+                return false;
         }
-        catch { return false; }
+        catch 
+        { 
+            return false; 
+        }
 
 
-        if (m.DeclaringType != m.Module.GetTypes().FirstOrDefault(t => t == m.DeclaringType))
+        if (method.DeclaringType != method.Module.GetTypes().FirstOrDefault(t => t == method.DeclaringType))
             return false;
 
-        if (m.GetMethodBody() == null) return false;
+        if (method.GetMethodBody() == null) 
+            return false;
 
-        if (m.GetCustomAttribute<IteratorStateMachineAttribute>() != null) return false;
-        
-        return !typeof(IEnumerator).IsAssignableFrom(m.ReturnType);
+        if (method.GetCustomAttribute<IteratorStateMachineAttribute>() != null) 
+            return false;
 
+        if (method.GetCustomAttribute<AsyncStateMachineAttribute>() != null) 
+            return false;
+
+        return true;
     }
 }
