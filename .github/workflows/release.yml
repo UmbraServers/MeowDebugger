@@ -8,7 +8,6 @@ permissions:
   contents: write
 
 jobs:
-
   release:
     runs-on: ubuntu-latest
 
@@ -16,11 +15,15 @@ jobs:
       - uses: actions/checkout@v5
       - name: Download References
         uses: Axwabo/scpsl-references-downloader@v1
-        with: 
+        with:
           branch: ${{ vars.BRANCH }}
-      - name: Build
+      - name: Build LabAPI
         run: dotnet build -c Release -o Output
+      - name: Build EXILED
+        run: dotnet build -c "Exiled Release" -o Output
       - name: Upload Assets
         uses: softprops/action-gh-release@v2
         with:
-          files: "Output/MeowDebugger.dll"
+          files: |
+            "Output/MeowDebugger.dll"
+            "Output/MeowDebugger-Exiled.dll"
