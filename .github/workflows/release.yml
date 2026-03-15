@@ -1,0 +1,43 @@
+name: Release DLL and Nuget Package
+on:
+  push:
+    tags:
+      - "*.*.*"
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    environment: publish
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Packages
+        run: nuget restore MeowDebugger.slnx
+
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+         dotnet-version: 8.0.x
+
+      - name: Download References
+        run: Invoke-WebRequest -Uri "https://exmod-team.github.io/SL-References/Dev.zip"
+          -OutFile "References.zip"
+
+      - name: Extract Refs
+        run: |
+          mkdir MeowDebugger\lib
+          tar -xf References.zip -C MeowDebugger/lib
+
+      - name: Build EXILED
+        run: dotnet build MeowDebugger.slnx -c "Exiled Release" -p:Platform=x64
+
+      - name: Build LabAPI
+        run: dotnet build MeowDebugger.slnx -c Release -p:Platform=x64
+
+      - name: Create Release with Dlls
+        uses: softprops/action-gh-release@v2
+        id: create_release
+        with:
+          generate_release_notes: true
+          files: |
+            MeowDebugger/bin/x64/Exiled Release/net48/MeowDebugger-Exiled.dll
+            MeowDebugger/bin/x64/Release/net48/MeowDebugger.dll
