@@ -35,10 +35,10 @@ jobs:
           del MeowDebugger\lib\mscorlib.dll
 
       - name: Build EXILED
-        run: dotnet build MeowDebugger.slnx -c "Exiled Release" -p:Platform=x64
+        run: dotnet build MeowDebugger.slnx -c "Exiled Release" -p:Platform=x64 -p:FrameworkPathOverride="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8"
 
       - name: Build LabAPI
-        run: dotnet build MeowDebugger.slnx -c Release -p:Platform=x64
+        run: dotnet build MeowDebugger.slnx -c Release -p:Platform=x64 -p:FrameworkPathOverride="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8"
 
       - name: Create Release with Dlls
         uses: softprops/action-gh-release@v2
