@@ -1,11 +1,9 @@
-﻿#pragma warning disable CS1591
+﻿#if EXILED_RELEASE
+using Exiled.API.Interfaces;
+#endif
 
 using System.Collections.Generic;
 using System.ComponentModel;
-
-#if EXILED_RELEASE
-using Exiled.API.Interfaces;
-#endif
 
 namespace MeowDebugger;
 

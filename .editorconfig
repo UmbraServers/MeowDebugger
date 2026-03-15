@@ -4,3 +4,9 @@ dotnet_diagnostic.CS1591.severity = none
 [**/Commands/*.cs]
 dotnet_diagnostic.SA1600.severity = none
 dotnet_diagnostic.CS1591.severity = none
+[ConfigDebugger.cs]
+dotnet_diagnostic.SA1600.severity = none
+dotnet_diagnostic.CS1591.severity = none
+[**/API/Features/Speedscope/File/Structs/*.cs]
+dotnet_diagnostic.SA1600.severity = none
+dotnet_diagnostic.CS1591.severity = none

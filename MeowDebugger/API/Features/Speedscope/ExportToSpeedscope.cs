@@ -31,6 +31,7 @@ public class ExportToSpeedscope
     public static bool ExportJsonFile(out string filePath)
     {
         filePath = string.Empty;
+
         if (FrameEvents == null || FrameEvents.Count == 0)
         {
             Logger.Info($"Frame Events are empty!");
@@ -70,7 +71,7 @@ public class ExportToSpeedscope
 
             using FileStream stream = System.IO.File.Create(filePath);
             JsonSerializer.Serialize(stream, file, new JsonSerializerOptions { WriteIndented = true });
-            Logger.Info($"Speedscope graph exported to {path} folder");
+            Logger.Info($"Speedscope graph exported to \"{filePath}\"");
             return true;
         }
         catch (Exception ex)
@@ -97,7 +98,6 @@ public class ExportToSpeedscope
             counts[frameEvent.FrameIndex] += 1;
         }
 
-        // TODO: Calculate self count and total count 
         // key is frame index and value is count
         foreach (var kvp in counts)
         {
@@ -117,9 +117,7 @@ public class ExportToSpeedscope
         for (int i = 0; i < frameEvents.Count; i++)
         {
             if (i % 2 != 0 || i + 1 > frameEvents.Count)
-            {
                 continue;
-            }
 
             FrameEvent openFrame = frameEvents[i];
             FrameEvent closedFrame = frameEvents[i + 1];

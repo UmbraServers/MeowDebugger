@@ -139,14 +139,6 @@ internal class Patcher
         {
             try
             {
-                // Not sure if we need seemes useless + and I think you need to fuck up something to patch everything again 2 times
-                //var info = Harmony.GetPatchInfo(method);
-                //if (info?.Owners?.Contains(_harmony.Id) == true)
-                //{
-                //    Logger.Debug($"Already patched: {type.FullName}::{method.Name}()");
-                //    return;
-                //}
-
                 _harmony.Patch(
                     original: method,
                     prefix: new HarmonyMethod(_prefixMethod),
@@ -201,7 +193,6 @@ internal class Patcher
         BindingFlags.Static |
         BindingFlags.DeclaredOnly;
 
-
         MethodInfo[] methods;
         try
         {
@@ -238,8 +229,6 @@ internal class Patcher
         try
         {
             // TODO: Test if ` will work here
-            // I'm not sure if the ` cheat code is useful here and I'm too lazy to test
-
             if (method.IsGenericMethod || method.IsGenericMethodDefinition) 
                 return false;
 

@@ -1,6 +1,4 @@
-﻿#pragma warning disable CS1591
-
-namespace MeowDebugger.API.Features.Speedscope.File.Structs
+﻿namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
     internal struct FrameEventType
     {

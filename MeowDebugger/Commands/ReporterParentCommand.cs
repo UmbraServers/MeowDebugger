@@ -19,7 +19,6 @@ namespace MeowDebugger.Commands
 
         public override void LoadGeneratedCommands()
         {
-            // I wanted to use attributes for this cause it sounds fun but I think I will be just overcomplicating stuff 
 #if EXILED_RELEASE
             this.RegisterCommand(new DisableCommand());
             this.RegisterCommand(new EnableCommand());
