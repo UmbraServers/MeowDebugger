@@ -70,7 +70,7 @@ public class ExportToSpeedscope
 
             using FileStream stream = System.IO.File.Create(filePath);
             JsonSerializer.Serialize(stream, file, new JsonSerializerOptions { WriteIndented = true });
-            Logger.Info($"Speedscope graph exported to {path}");
+            Logger.Info($"Speedscope graph exported to {path} folder");
             return true;
         }
         catch (Exception ex)
