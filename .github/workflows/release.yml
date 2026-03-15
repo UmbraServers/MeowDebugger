@@ -9,8 +9,10 @@ jobs:
     environment: publish
 
     steps:
-      - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v2
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+         dotnet-version: 8.0.x
 
       - uses: actions/checkout@v4
       - name: Restore Packages
@@ -26,10 +28,10 @@ jobs:
           tar -xf References.zip -C MeowDebugger/lib
 
       - name: Build EXILED
-        run: msbuild MeowDebugger.slnx /p:Configuration="Exiled Release" /p:Platform=x64 /m
+        run: dotnet build MeowDebugger.slnx -c "Exiled Release" -p:Platform=x64
 
       - name: Build LabAPI
-        run: msbuild MeowDebugger.slnx /p:Configuration=Release /p:Platform=x64 /m
+        run: dotnet build MeowDebugger.slnx -c Release -p:Platform=x64
 
       - name: Create Release with Dlls
         uses: softprops/action-gh-release@v2
