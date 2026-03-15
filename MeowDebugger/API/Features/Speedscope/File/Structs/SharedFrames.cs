@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-
 namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
     /// <summary>

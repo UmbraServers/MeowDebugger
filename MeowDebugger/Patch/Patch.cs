@@ -16,7 +16,7 @@ internal class Patch
     private static Exception Finalizer(MethodBase __originalMethod, long __state, Exception __exception)
     {
         long elapsed = Stopwatch.GetTimestamp();
-        MethodMetrics.Exit(__originalMethod, elapsed, __state);
+        MethodMetrics.Exit(__originalMethod, __state, elapsed);
         return __exception;
     }
 }

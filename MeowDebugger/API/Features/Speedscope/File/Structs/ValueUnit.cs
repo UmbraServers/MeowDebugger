@@ -1,6 +1,4 @@
-﻿#pragma warning disable CS1591
-
-using MeowDebugger.API.Features.Speedscope.File.Profiles;
+﻿using MeowDebugger.API.Features.Speedscope.File.Profiles;
 
 namespace MeowDebugger.API.Features.Speedscope.File.Structs
 {
