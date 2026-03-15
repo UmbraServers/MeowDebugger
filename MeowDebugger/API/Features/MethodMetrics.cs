@@ -38,7 +38,7 @@ internal static class MethodMetrics
         StackValue.Push((method, 0, GetClampedTps()));
     }
 
-    public static void Exit(MethodBase? method, long endTime, long startTime)
+    public static void Exit(MethodBase? method, long startTime, long endTime)
     {
         if (method == null)
         {
@@ -170,8 +170,8 @@ internal static class MethodMetrics
         }
 
         StringBuilder sb = StringBuilderPool.Shared.Rent();
-        sb.AppendLine("<color=#CF9F95>============================== Method Timing ===============================</color>");
-        sb.AppendLine("<color=#7BB8DB>Avg(ms)\tMin(ms)\tMax(ms)\tCount\tTotal(ms)\tTPS Bfr\tTPS Aft\tDanger\t</color>"); // Removed before just so it aligns correctly in RA
+        sb.AppendLine("<#CF9F95>============================== Method Timing ===============================</color>");
+        sb.AppendLine("<#7BB8DB>Avg(ms)\tMin(ms)\tMax(ms)\tCount\tTotal(ms)\tTPS Bfr\tTPS Aft\tDanger\t</color>");
 
         long maxTotal = items.Max(it => it.Snap.TotalTicks);
 
@@ -203,7 +203,7 @@ internal static class MethodMetrics
                 sb.Append(MethodStats(childMethod, childSnap, childMaxTick));
             }
         }
-        sb.AppendLine("<color=#CF9F95>============================== Method Timing ===============================</color>");
+        sb.AppendLine("<#CF9F95>============================== Method Timing ===============================</color>");
 
         return StringBuilderPool.Shared.ToStringReturn(sb);
     }
@@ -221,12 +221,14 @@ internal static class MethodMetrics
         string dangerHex = DangerToColorHex(danger);
         string methodName = GetMethodName(method);
 
+        LabApi.Features.Console.Logger.Info(dangerHex);
+
         double avg = TicksToMilliseconds(snap.AvgTicks);
         double min = TicksToMilliseconds(snap.MinTicks);
         double max = TicksToMilliseconds(snap.MaxTicks);
         double total = TicksToMilliseconds(snap.TotalTicks);
 
-        return $"<color=#F7FAB4>{methodName}</color>\n{(avg < 0.001 ? "<color=#96FFD1><0.001</color>" : $"{avg:0.###}")}\t{(min < 0.001 ? "<color=#96FFD1><0.001</color>" : $"{min:0.###}")}\t{max:0.###}\t{snap.Count}\t{total:0.###}\t{snap.BeforeTpsAvg:0.###}\t{snap.AfterTpsAvg:0.###}\t<color=#{dangerHex}>{danger}</color>\t\n";
+        return $"<#F7FAB4>{methodName}</color>\n{(avg < 0.001 ? "<#96FFD1><0.001</color>" : $"{avg:0.###}")}\t{(min < 0.001 ? "<#96FFD1><0.001</color>" : $"{min:0.###}")}\t{max:0.###}\t{snap.Count}\t{total:0.###}\t{snap.BeforeTpsAvg:0.###}\t{snap.AfterTpsAvg:0.###}\t<#{dangerHex}>{danger}</color>\t\n";
     }
 
     private static string DangerToColorHex(int danger)

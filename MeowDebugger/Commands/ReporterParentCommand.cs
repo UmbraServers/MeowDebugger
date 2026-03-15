@@ -35,7 +35,7 @@ namespace MeowDebugger.Commands
         {
             if (arguments.Count == 0)
             {
-                response = $"TPS: {MethodMetrics.GetClampedTps():0.##} {MethodMetrics.ReportAndReset()}";
+                response = $"TPS: {MethodMetrics.GetClampedTps():0.##}\n{MethodMetrics.ReportAndReset()}";
                 return true;
             }
 

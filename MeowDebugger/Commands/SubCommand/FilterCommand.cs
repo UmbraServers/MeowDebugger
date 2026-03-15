@@ -23,7 +23,7 @@ namespace MeowDebugger.Commands.SubCommand
                 return false;
             }
 
-            response = $"TPS: {MethodMetrics.GetClampedTps():0.##} {MethodMetrics.ReportAndReset(arguments)}";
+            response = $"TPS: {MethodMetrics.GetClampedTps():0.##}\n{MethodMetrics.ReportAndReset(arguments)}";
             return true;
         }
     }
