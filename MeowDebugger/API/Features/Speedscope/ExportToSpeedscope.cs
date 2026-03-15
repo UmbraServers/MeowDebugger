@@ -1,14 +1,19 @@
+#if EXILED_RELEASE
+using Exiled.API.Enums;
+using Exiled.API.Features;
+using Exiled.Loader;
+#endif
 using LabApi.Features.Console;
 using LabApi.Loader;
 using MeowDebugger.API.Features.Speedscope.File;
 using MeowDebugger.API.Features.Speedscope.File.Profiles;
 using MeowDebugger.API.Features.Speedscope.File.Structs;
 using MeowDebugger.Framework;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using static MeowDebugger.API.Features.MethodMetrics;
 
 namespace MeowDebugger.API.Features.Speedscope;
@@ -21,13 +26,15 @@ public class ExportToSpeedscope
     /// <summary>
     /// Exports the json file.
     /// </summary>
-    /// <returns>the json file</returns>
+    /// <param name="filePath">The path of the exported file.</param>
+    /// <returns>If it was able to export the json file.</returns>
     public static bool ExportJsonFile(out string filePath)
     {
         filePath = string.Empty;
 
         if (FrameEvents == null || FrameEvents.Count == 0)
         {
+            Logger.Info($"Frame Events are empty!");
             return false;
         }
 
@@ -47,22 +54,24 @@ public class ExportToSpeedscope
         try
         {
             // TODO: Check the generated json and if something is wrong, show actually wtf is going on with
-            string jsonString = JsonConvert.SerializeObject(file, Formatting.Indented);
             string path = ConfigDebugger.Instance!.SpeedscopeOutputPath == string.Empty
 #if EXILED_RELEASE
-                ? Path.Combine(MeowDebuggerExiled.Instance!.ConfigPath, "Speedscope") : ConfigDebugger.Instance!.SpeedscopeOutputPath;
+                // Adding () just so I know what's the argument of the combine, i'm legally blind
+                ? Path.Combine((LoaderPlugin.Config.ConfigType == ConfigType.Default ? Paths.Configs : Path.Combine(Paths.IndividualConfigs, MeowDebuggerExiled.Instance!.Prefix)), "Speedscope") : ConfigDebugger.Instance!.SpeedscopeOutputPath;
 #else
                 ? Path.Combine(MeowDebuggerLabAPI.Instance!.GetConfigDirectory().FullName, "Speedscope") : ConfigDebugger.Instance!.SpeedscopeOutputPath;
 #endif
 
-            Directory.CreateDirectory(path);
-
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
-            string namespaces = string.Join("-", ConfigDebugger.Instance!.WhitelistNamespaces);
-
+            string namespaces = ConfigDebugger.Instance!.ShouldIncludeNamespaceInOutput ? string.Join("-", ConfigDebugger.Instance!.WhitelistNamespaces) : "speedscope";
             string filename = $"{namespaces}_{timestamp}.json";
+
+            Directory.CreateDirectory(path);
             filePath = Path.Combine(path, filename);
-            System.IO.File.WriteAllText(filePath, jsonString);
+
+            using FileStream stream = System.IO.File.Create(filePath);
+            JsonSerializer.Serialize(stream, file, new JsonSerializerOptions { WriteIndented = true });
+            Logger.Info($"Speedscope graph exported to \"{filePath}\"");
             return true;
         }
         catch (Exception ex)
@@ -89,7 +98,6 @@ public class ExportToSpeedscope
             counts[frameEvent.FrameIndex] += 1;
         }
 
-        // TODO: Calculate self count and total count 
         // key is frame index and value is count
         foreach (var kvp in counts)
         {
@@ -109,9 +117,7 @@ public class ExportToSpeedscope
         for (int i = 0; i < frameEvents.Count; i++)
         {
             if (i % 2 != 0 || i + 1 > frameEvents.Count)
-            {
                 continue;
-            }
 
             FrameEvent openFrame = frameEvents[i];
             FrameEvent closedFrame = frameEvents[i + 1];

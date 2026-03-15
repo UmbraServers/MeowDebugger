@@ -3,6 +3,13 @@
     <BuildType Name="Debug" />
     <BuildType Name="Exiled Release" />
     <BuildType Name="Release" />
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
   </Configurations>
-  <Project Path="MeowDebugger/MeowDebugger.csproj" />
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Project Path="MeowDebugger/MeowDebugger.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
 </Solution>
