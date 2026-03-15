@@ -30,6 +30,10 @@ jobs:
           mkdir MeowDebugger\lib
           tar -xf References.zip -C MeowDebugger/lib
 
+      - name: Remove mscorlib
+        run: |
+          del MeowDebugger\lib\mscorlib.dll
+
       - name: Build EXILED
         run: dotnet build MeowDebugger.slnx -c "Exiled Release" -p:Platform=x64
 
