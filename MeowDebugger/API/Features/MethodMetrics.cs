@@ -15,6 +15,7 @@ namespace MeowDebugger.API.Features;
 
 internal static class MethodMetrics
 {
+    // TODO: Make Snapshot receive MethodBase
     private static ConcurrentDictionary<MethodBase, Stats> _map = new();
     private static ConcurrentDictionary<MethodBase, ConcurrentDictionary<MethodBase, Stats>> _children = new();
 
@@ -54,12 +55,9 @@ internal static class MethodMetrics
 
         if (TicksToNanoSeconds(elapsedTime) >= ConfigDebugger.Instance!.NanosecondsThreshold)
         {
-            List<FrameEvent> events = FrameEvents ??= new();
+            List<FrameEvent> events = FrameEvents ??= [];
 
             int index = StoreIndex(method);
-
-            if (index == -1)
-                return;
 
             // this is so much better dude, I don't have to bother filtering it at the end + less memory usage!!!!!!
             events.Add(new FrameEvent(FrameEventType.OpenFrame, index, TicksToNanoSeconds(startTime)));
@@ -136,8 +134,6 @@ internal static class MethodMetrics
 
     public static string GetMethodName(MethodBase method) => method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
 
-    public static int GetMethodIndex(MethodBase method) => MethodIndexes.TryGetValue(method, out int id) ? id : -1;
-
     // TODO: use this instead of the one from the command
     private static double GetClampedTps() => Mathf.Clamp((float) Server.Tps, 0, Server.MaxTps);
 
@@ -150,24 +146,6 @@ internal static class MethodMetrics
                         .ToArray();
 
         return BuildReport(items, includeChildren: false);
-    }
-
-    public static (MethodBase Method, Stats.Snapshot Snap)[] SnapshotAllAndReset()
-    {
-        List<(MethodBase, Stats.Snapshot)> results = new List<(MethodBase, Stats.Snapshot)>();
-
-        foreach (MethodBase? key in _map.Keys.ToArray())
-        {
-            if (!_map.TryGetValue(key, out Stats? stats))
-                continue;
-
-            Stats.Snapshot snap = stats.SnapshotAndReset();
-
-            if (snap.Count > 0)
-                results.Add((key, snap));
-        }
-
-        return results.ToArray();
     }
 
     public static string ReportAndReset(IEnumerable<string> methodNames)
