@@ -22,7 +22,8 @@ namespace MeowDebugger.Commands.SubCommand
         {
             if (arguments.Count > 0 && int.TryParse(arguments.At(0), out int timer))
             {
-                MethodMetrics.FrameEvents!.Clear();
+                // PLEASE DONT ADD ! or ?, I'm pretty sure fucks with thread static thingy
+                MethodMetrics.FrameEvents.Clear();
                 MethodMetrics.MethodIndexes.Clear();
                 MethodMetrics.Frames.Clear();
 
@@ -33,7 +34,6 @@ namespace MeowDebugger.Commands.SubCommand
                         Logger.Error("Unable to export speedscope graph.");
                         return;
                     }
-                    Logger.Info($"Speedscope graph exported to {path}");
                 });
 
                 response = $"Speedscope graph will be exported in {timer} seconds.";
