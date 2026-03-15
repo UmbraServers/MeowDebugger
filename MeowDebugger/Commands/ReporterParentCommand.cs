@@ -35,24 +35,12 @@ namespace MeowDebugger.Commands
         {
             if (arguments.Count == 0)
             {
-                response = WithTps(MethodMetrics.ReportAndReset());
+                response = $"TPS: {MethodMetrics.GetClampedTps():0.##} {MethodMetrics.ReportAndReset()}";
                 return true;
             }
 
             response = $"Unknown subcommand. Use 'reporter help' for usage.";
             return false;
-        }
-
-        internal static string WithTps(string? metrics)
-        {
-            double tps = Server.Tps >= Server.MaxTps ? Server.MaxTps : Server.Tps;
-
-            if (tps < 0)
-            {
-                tps = 0;
-            }
-                
-            return $"TPS: {tps:0.##}\n{metrics}";
         }
     }
 }

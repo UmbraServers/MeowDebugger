@@ -23,7 +23,7 @@ namespace MeowDebugger.Commands.SubCommand
                 return false;
             }
 
-            response = ReporterParentCommand.WithTps(MethodMetrics.ReportAndReset(arguments) ?? "No matching methods.");
+            response = $"TPS: {MethodMetrics.GetClampedTps():0.##} {MethodMetrics.ReportAndReset(arguments)}";
             return true;
         }
     }

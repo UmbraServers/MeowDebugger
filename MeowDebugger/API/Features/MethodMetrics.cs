@@ -28,12 +28,6 @@ internal static class MethodMetrics
     public static Dictionary<MethodBase, int> MethodIndexes { get; } = [];
     public static List<Frame> Frames { get; } = [];
 
-
-    private static readonly double TicksToNano = Math.Pow(10, 9) / Stopwatch.Frequency;
-    private static readonly double TicksToMs = Math.Pow(10, 3) / Stopwatch.Frequency;
-    private static double TicksToNanoSeconds(long ticks) => ticks * TicksToNano;
-    private static double TicksToMilliseconds(long ticks) => ticks * TicksToMs;
-
     public static void Enter(MethodBase? method, long startTime)
     {
         if (method == null)
@@ -133,9 +127,7 @@ internal static class MethodMetrics
     }
 
     public static string GetMethodName(MethodBase method) => method.DeclaringType != null ? $"{method.DeclaringType.FullName}.{method.Name}" : method.Name;
-
-    // TODO: use this instead of the one from the command
-    private static double GetClampedTps() => Mathf.Clamp((float) Server.Tps, 0, Server.MaxTps);
+    public static double GetClampedTps() => Mathf.Clamp((float)Server.Tps, 0, Server.MaxTps);
 
     public static string ReportAndReset(int topN = 10)
     {
@@ -166,6 +158,9 @@ internal static class MethodMetrics
 
         return BuildReport(items, includeChildren: true);
     }
+
+    private static double TicksToNanoSeconds(long ticks) => ticks * (Math.Pow(10, 9) / Stopwatch.Frequency);
+    private static double TicksToMilliseconds(long ticks) => ticks * (Math.Pow(10, 3) / Stopwatch.Frequency);
 
     private static string BuildReport((MethodBase Method, Stats.Snapshot Snap)[] items, bool includeChildren)
     {
@@ -232,7 +227,6 @@ internal static class MethodMetrics
         double total = TicksToMilliseconds(snap.TotalTicks);
 
         return $"<color=#F7FAB4>{methodName}</color>\n{(avg < 0.001 ? "<color=#96FFD1><0.001</color>" : $"{avg:0.###}")}\t{(min < 0.001 ? "<color=#96FFD1><0.001</color>" : $"{min:0.###}")}\t{max:0.###}\t{snap.Count}\t{total:0.###}\t{snap.BeforeTpsAvg:0.###}\t{snap.AfterTpsAvg:0.###}\t<color=#{dangerHex}>{danger}</color>\t\n";
-
     }
 
     private static string DangerToColorHex(int danger)
