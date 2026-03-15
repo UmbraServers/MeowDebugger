@@ -9,14 +9,14 @@ jobs:
     environment: publish
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Restore Packages
-        run: nuget restore MeowDebugger.slnx
-
       - name: Setup Dotnet
         uses: actions/setup-dotnet@v4
         with:
          dotnet-version: 8.0.x
+
+      - uses: actions/checkout@v4
+      - name: Restore Packages
+        run: nuget restore MeowDebugger.slnx
 
       - name: Download References
         run: Invoke-WebRequest -Uri "https://exmod-team.github.io/SL-References/Dev.zip"
