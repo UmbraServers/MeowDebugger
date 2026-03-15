@@ -17,7 +17,7 @@ internal class Patcher
     private static List<string> Blacklisted => ConfigDebugger.Instance!.BlacklistAssemblies;
     private static List<string> Whitelist => ConfigDebugger.Instance!.WhitelistNamespaces;
     
-    private readonly Type[] _types;
+    private readonly List<Type> _types;
     private readonly Harmony _harmony;
     private readonly MethodInfo _prefixMethod;
     private readonly MethodInfo _finalizerMethod;
@@ -31,7 +31,8 @@ internal class Patcher
             ?? throw new InvalidOperationException("Patch.Prefix (static, non-public) not found.");
         _finalizerMethod = typeof(Patch.Patch).GetMethod("Finalizer", BindingFlags.Static | BindingFlags.NonPublic)
                            ?? throw new InvalidOperationException("Patch.Finalizer (static, non-public) not found.");
-        
+        _types = [];
+
         Assembly[] assemblies = [];
         Assembly gameAsm = typeof(ReferenceHub).Assembly;
 
@@ -77,8 +78,6 @@ internal class Patcher
             return;
         }
 
-        List<Type> allTypes = [];
-        
         foreach (Assembly asm in assemblies)
         {
             Type[] asmTypes;
@@ -111,16 +110,14 @@ internal class Patcher
                 if (type.TypeInitializer != null)
                     continue;
 
-                allTypes.Add(type);
+                _types.Add(type);
             }
         }
-
-        _types = allTypes.ToArray();
     }
 
     public void PatchMethods()
     {
-        if (_types.Length == 0)
+        if (_types.Count == 0)
         {
             Logger.Warn("No types to patch.");
             return;
@@ -169,7 +166,7 @@ internal class Patcher
         }
 
 
-        Logger.Info($"Tried patching {tried} methods across {_types.Length} types; successfully patched {_patchedMethods}.");
+        Logger.Info($"Tried patching {tried} methods across {_types.Count} types; successfully patched {_patchedMethods}.");
     }
 
     private static bool IsBlacklisted(Assembly asm)
