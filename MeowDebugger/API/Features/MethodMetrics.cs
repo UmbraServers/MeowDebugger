@@ -221,8 +221,6 @@ internal static class MethodMetrics
         string dangerHex = DangerToColorHex(danger);
         string methodName = GetMethodName(method);
 
-        LabApi.Features.Console.Logger.Info(dangerHex);
-
         double avg = TicksToMilliseconds(snap.AvgTicks);
         double min = TicksToMilliseconds(snap.MinTicks);
         double max = TicksToMilliseconds(snap.MaxTicks);
