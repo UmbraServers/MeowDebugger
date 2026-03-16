@@ -16,7 +16,7 @@ The features the plugin currently has:
 > [!NOTE]
 > We recommend using this if you need accurate data.
 
- Use the command "reporter flame" and then go to this website [speedscope](https://www.speedscope.app/) to allow you to see them
+ Use the command ``reporter flame`` and then go to [speedscope.app](https://www.speedscope.app/) so you can see it.
 
  ## Config
 | Setting Key | Value Type | Default Value | Description |
