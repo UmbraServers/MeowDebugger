@@ -44,6 +44,8 @@ public class ConfigDebugger
         "System.ValueTuple"
     ];
 
+    public List<string> BlacklistedNamespaces { get; set; } = [];
+    
     public List<string> WhitelistNamespaces { get; set; } =
     [
         "InventorySystem",

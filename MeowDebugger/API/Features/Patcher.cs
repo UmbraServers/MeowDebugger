@@ -15,6 +15,9 @@ namespace MeowDebugger.API.Features;
 internal class Patcher
 {
     private static List<string> Blacklisted => ConfigDebugger.Instance!.BlacklistAssemblies;
+    
+    private static List<string> BlacklistedNamespaces => ConfigDebugger.Instance!.BlacklistedNamespaces;
+    
     private static List<string> Whitelist => ConfigDebugger.Instance!.WhitelistNamespaces;
     
     private readonly List<Type> _types;
@@ -128,6 +131,9 @@ internal class Patcher
 
         foreach (Type type in _types)
         {
+            if (BlacklistedNamespaces.Any(prefix => type.Namespace?.Contains(prefix) == true))
+                continue;   
+            
             foreach (MethodInfo method in EnumeratePatchableMethods(type))
             {
                 tried++;
