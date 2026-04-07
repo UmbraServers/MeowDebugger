@@ -10,7 +10,6 @@ internal class Patch
     private static void Prefix(MethodBase __originalMethod, out long __state)
     {
         __state = Stopwatch.GetTimestamp();
-        MethodMetrics.Enter(__originalMethod, __state);
     }
 
     private static Exception Finalizer(MethodBase __originalMethod, long __state, Exception __exception)

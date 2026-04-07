@@ -17,14 +17,8 @@ namespace MeowDebugger.Commands.SubCommand
 
         public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
-            if (arguments.Count == 0)
-            {
-                response = "Usage: reporter filter <method1> [method2] ...";
-                return false;
-            }
-
-            response = $"TPS: {MethodMetrics.GetClampedTps():0.##}\n{MethodMetrics.ReportAndReset(arguments)}";
-            return true;
+            response = $"Disabled in this build.";
+            return false;
         }
     }
 }

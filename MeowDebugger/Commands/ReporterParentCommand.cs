@@ -32,12 +32,6 @@ namespace MeowDebugger.Commands
 
         protected override bool ExecuteParent(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
-            if (arguments.Count == 0)
-            {
-                response = $"TPS: {MethodMetrics.GetClampedTps():0.##}\n{MethodMetrics.ReportAndReset()}";
-                return true;
-            }
-
             response = $"Unknown subcommand. Use 'reporter help' for usage.";
             return false;
         }

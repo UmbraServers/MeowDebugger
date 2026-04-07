@@ -228,8 +228,7 @@ internal class Patcher
 
         try
         {
-            // TODO: Test if ` will work here
-            if (method.IsGenericMethod || method.IsGenericMethodDefinition) 
+            if (method.Name.Contains('`') || method.IsGenericMethod || method.IsGenericMethodDefinition) 
                 return false;
 
             if (method.ContainsGenericParameters) 
@@ -238,7 +237,7 @@ internal class Patcher
             if (method.ReturnType.IsGenericParameter) 
                 return false;
 
-            if (method.ReturnType.IsGenericType && method.ReturnType.ContainsGenericParameters) 
+            if (method.ReturnType is { IsGenericType: true, ContainsGenericParameters: true }) 
                 return false;
 
             if (typeof(IEnumerator).IsAssignableFrom(method.ReturnType))
@@ -257,10 +256,7 @@ internal class Patcher
 
         if (method.GetCustomAttribute<IteratorStateMachineAttribute>() != null) 
             return false;
-
-        if (method.GetCustomAttribute<AsyncStateMachineAttribute>() != null) 
-            return false;
-
-        return true;
+        
+        return method.GetCustomAttribute<AsyncStateMachineAttribute>() != null;
     }
 }

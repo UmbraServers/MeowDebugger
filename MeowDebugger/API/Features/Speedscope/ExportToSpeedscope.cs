@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using ProtoBuf;
 using static MeowDebugger.API.Features.MethodMetrics;
 
 namespace MeowDebugger.API.Features.Speedscope;
@@ -30,24 +31,36 @@ public class ExportToSpeedscope
     /// <returns>If it was able to export the json file.</returns>
     public static bool ExportJsonFile(out string filePath)
     {
+        var threadsFrameEvents = FrameEvents.Values.ToList();
+        
         filePath = string.Empty;
 
-        if (FrameEvents == null || FrameEvents.Count == 0)
+        if  (threadsFrameEvents.Count == 0)
         {
             Logger.Info($"Frame Events are empty!");
             return false;
         }
 
-        List<FrameEvent> frameEvents = [.. FrameEvents.OrderBy(e => e.At)];
+        List<FrameEvent> frameEvents = [];
+
+        foreach (var frameEventList in threadsFrameEvents)
+        {
+            frameEvents.AddRange(frameEventList.Events);
+        }
+            
         List<Frame> frames = [.. Frames];
 
         EventedProfile timeProfile = new("Time (ns)", ValueUnit.Nanoseconds, frameEvents.First().At, frameEvents.Last().At, frameEvents);
         SampledProfile countProfile = CreateCountProfile(frameEvents, frames, out Dictionary<int, long> counts);
-        SampledProfile timedProfile = CreateAverageMethodTimeProfile(FrameEvents, counts);
+        SampledProfile timedProfile = CreateAverageMethodTimeProfile(frameEvents, counts);
 
         SpeedscopeFile file = new([timeProfile, countProfile, timedProfile], new SharedFrames(frames), "MeowDebugger@1.0.0");
 
-        FrameEvents.Clear();
+        foreach (var fe in FrameEvents.Values)
+        {
+            fe.Events.Clear();
+        }
+        
         MethodIndexes.Clear();
         Frames.Clear();
 

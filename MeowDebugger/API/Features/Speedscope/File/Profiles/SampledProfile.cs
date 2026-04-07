@@ -12,7 +12,7 @@ namespace MeowDebugger.API.Features.Speedscope.File.Profiles
     {
         /// <inheritdoc/>
         [JsonConstructor]
-        public SampledProfile(string Name, string unit, long startValue, long endValue, List<List<long>> samples, List<double> weights) : base(Name, unit, startValue, endValue)
+        public SampledProfile(string name, string unit, long startValue, long endValue, List<List<long>> samples, List<double> weights) : base(name, unit, startValue, endValue)
         {
             this.Samples = samples;
             this.Weights = weights;
